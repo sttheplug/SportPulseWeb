@@ -37,6 +37,7 @@ button {
     border-radius: 5px;
     transition: 0.3s ease-in-out;
     box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    margin: 8px 0; /* Adds a small space between buttons */
 }
 
 button:hover {

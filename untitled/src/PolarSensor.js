@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { Line } from "react-chartjs-2"; // Import Chart.js
+import "chart.js/auto"; // Required for Chart.js v3+
 import "./PolarSensor.css"; // Import styles
 
 const PolarSensor = () => {
@@ -6,14 +8,17 @@ const PolarSensor = () => {
     const [device, setDevice] = useState(null);
     const [characteristic, setCharacteristic] = useState(null);
     const [isMeasuring, setIsMeasuring] = useState(false);
+    const [connecting, setConnecting] = useState(false); // Loading state
+    const [heartRateHistory, setHeartRateHistory] = useState([]); // Stores data for graph
 
     const connectToSensor = async () => {
         if (device) {
-            disconnectSensor();
+            await disconnectSensor();
             return;
         }
 
         try {
+            setConnecting(true); // Show loading indicator
             console.log("Requesting Bluetooth Device...");
             const device = await navigator.bluetooth.requestDevice({
                 acceptAllDevices: true,
@@ -31,6 +36,8 @@ const PolarSensor = () => {
             console.log("Device connected, ready to start measurement");
         } catch (error) {
             console.error("Connection failed:", error);
+        } finally {
+            setConnecting(false); // Hide loading indicator
         }
     };
 
@@ -43,6 +50,7 @@ const PolarSensor = () => {
                 setCharacteristic(null);
                 setHeartRate(null);
                 setIsMeasuring(false);
+                setHeartRateHistory([]); // Clear history on disconnect
                 console.log("Disconnected from sensor.");
             } catch (error) {
                 console.error("Failed to disconnect:", error);
@@ -93,8 +101,21 @@ const PolarSensor = () => {
     const handleData = (event) => {
         let value = event.target.value;
         let heartRate = parseHeartRate(value);
+
         setHeartRate(heartRate);
+        setHeartRateHistory((prev) => [...prev.slice(-50), heartRate]); // Keep last 50 data points
+
+        // Send data to the backend
+        fetch("http://localhost:5000/save-heart-rate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bpm: heartRate }),
+        })
+            .then((response) => response.json())
+            .then((data) => console.log("Data saved:", data))
+            .catch((error) => console.error("Error saving data:", error));
     };
+
 
     const parseHeartRate = (value) => {
         let data = new DataView(value.buffer);
@@ -102,16 +123,39 @@ const PolarSensor = () => {
         return (flags & 0x01) ? data.getUint16(1, true) : data.getUint8(1);
     };
 
+    // Data for Chart.js
+    const chartData = {
+        labels: heartRateHistory.map((_, i) => i), // X-axis as index (time)
+        datasets: [
+            {
+                label: "Heart Rate (BPM)",
+                data: heartRateHistory,
+                borderColor: "red",
+                backgroundColor: "rgba(255, 0, 0, 0.5)",
+                fill: false,
+            },
+        ],
+    };
+
     return (
         <div className="container">
             <h2>Polar Sensor</h2>
-            <button onClick={connectToSensor}>
+            {connecting && <p>Connecting... ⏳</p>}
+            {device && <p>Connected to: {device.name}</p>}
+            <button onClick={connectToSensor} disabled={connecting}>
                 {device ? "Disconnect from Sensor" : "Connect to Polar Sensor"}
             </button>
             <button onClick={toggleMeasurement} disabled={!device}>
                 {isMeasuring ? "Stop Measurement" : "Start Measurement"}
             </button>
             <h3>Heart Rate: {heartRate ? `${heartRate} BPM` : "No Data"}</h3>
+
+            {/* Display chart if data exists */}
+            {heartRateHistory.length > 0 && (
+                <div className="chart-container">
+                    <Line data={chartData} />
+                </div>
+            )}
         </div>
     );
 };
