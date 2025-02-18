@@ -9,7 +9,7 @@ app.use(express.json());
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",
-    password: "4321", // Ändra till ditt MySQL-lösenord
+    password: "Aprilapril23.", // Ändra till ditt MySQL-lösenord
     database: "sensor_data",
 });
 
