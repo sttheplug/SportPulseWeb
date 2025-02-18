@@ -10,7 +10,7 @@ app.use(express.json()); // Parse JSON requests
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",       // Change to your MySQL username
-    password: "Aprilapril23.", // Change to your MySQL password
+    password: "4321", // Change to your MySQL password
     database: "sensor_data",
 });
 

@@ -20,9 +20,12 @@ const PolarSensor = () => {
         try {
             setConnecting(true); // Show loading indicator
             console.log("Requesting Bluetooth Device...");
+
             const device = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: ["heart_rate"],
+                filters: [
+                    { namePrefix: "Polar" }, // Filter for devices with names starting with "Polar"
+                    { services: ["heart_rate"] } // Ensure device supports heart rate service
+                ]
             });
 
             console.log(`Connected to ${device.name}`);
@@ -40,6 +43,7 @@ const PolarSensor = () => {
             setConnecting(false); // Hide loading indicator
         }
     };
+
 
     const disconnectSensor = async () => {
         if (device && device.gatt.connected) {
