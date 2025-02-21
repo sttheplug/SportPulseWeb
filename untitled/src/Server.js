@@ -6,53 +6,63 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// 🔹 Skapa MySQL-anslutning
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",
-    password: "4321", // Ändra till ditt MySQL-lösenord
+    password: "4321", // Byt till ditt MySQL-lösenord
     database: "sensor_data",
 });
 
+// 🔹 Kontrollera MySQL-anslutning
 db.connect((err) => {
     if (err) {
-        console.error("Database connection failed:", err);
+        console.error("❌ Database connection failed:", err);
         return;
     }
-    console.log("Connected to MySQL database.");
+    console.log("✅ Connected to MySQL database.");
 });
 
-// API för att spara hjärtfrekvensdata med `device_id`
-app.post("/save-heart-rate", (req, res) => {
-    const { device_id, bpm } = req.body;
+// 🔹 API: Spara sensor-data (heart rate & accelerometer)
+app.post("/save-sensor-data", (req, res) => {
+    const { timestamp, device_id, bpm, acc_x, acc_y, acc_z } = req.body;
 
-    if (!device_id || !bpm) {
-        return res.status(400).json({ error: "Device ID (name) and BPM are required" });
+    if (!device_id || (!bpm && acc_x === null && acc_y === null && acc_z === null)) {
+        return res.status(400).json({ error: "❌ Device ID and at least one data point (BPM or accelerometer) required!" });
     }
 
-    const query = "INSERT INTO heart_rate (device_id, bpm) VALUES (?, ?)";
-    db.query(query, [device_id, bpm], (err, result) => {
+    // 🔹 SQL Query för att spara data
+    const query = `
+        INSERT INTO polarsensorconnection.sensor_data (timestamp, device_id, bpm, acc_x, acc_y, acc_z)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `;
+
+
+    db.query(query, [timestamp, device_id, bpm, acc_x, acc_y, acc_z], (err, result) => {
         if (err) {
-            console.error("Failed to insert data:", err);
-            return res.status(500).json({ error: "Database error" });
+            console.error("❌ Database Insert Error:", err);
+            return res.status(500).json({ error: "Database insert failed!" });
         }
-        res.status(200).json({ message: "Heart rate saved!", insertId: result.insertId });
+
+        console.log(`✅ Data Inserted: ${device_id} - BPM: ${bpm} - X: ${acc_x}, Y: ${acc_y}, Z: ${acc_z}`);
+        res.status(200).json({ message: "Data saved successfully!" });
     });
 });
 
-
-// API för att hämta hjärtfrekvensdata per enhet
-app.get("/get-heart-rate/:device_id", (req, res) => {
+// 🔹 API: Hämta de senaste 50 värdena per enhet
+app.get("/get-sensor-data/:device_id", (req, res) => {
     const { device_id } = req.params;
-    db.query("SELECT * FROM heart_rate WHERE device_id = ? ORDER BY recorded_at DESC LIMIT 50", [device_id], (err, results) => {
+
+    db.query("SELECT * FROM sensor_data WHERE device_id = ? ORDER BY timestamp DESC LIMIT 50", [device_id], (err, results) => {
         if (err) {
-            console.error("Failed to fetch data:", err);
+            console.error("❌ Failed to fetch data:", err);
             return res.status(500).json({ error: "Database error" });
         }
         res.json(results);
     });
 });
 
-// Starta servern
+// 🔹 Starta servern
 app.listen(5000, () => {
-    console.log("Server running on port 5000");
+    console.log("🚀 Server running on port 5000");
 });
