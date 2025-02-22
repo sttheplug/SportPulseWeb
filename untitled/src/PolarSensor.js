@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, {useEffect, useState} from "react";
 import { Line } from "react-chartjs-2";
 import "chart.js/auto";
 import "./PolarSensor.css";
@@ -8,6 +8,20 @@ const PolarSensor = () => {
     const [heartRateData, setHeartRateData] = useState({}); // Stores heart rate per device
     const [connecting, setConnecting] = useState(false);
     const [measuringDevices, setMeasuringDevices] = useState({}); // Tracks measurement state per device
+
+    useEffect(() => {
+        const offlineData = JSON.parse(localStorage.getItem("offlineHeartRateData")) || [];
+
+        if (offlineData.length > 0) {
+            const groupedData = offlineData.reduce((acc, entry) => {
+                acc[entry.device_id] = [...(acc[entry.device_id] || []), entry.bpm];
+                return acc;
+            }, {});
+
+            setHeartRateData(groupedData);
+        }
+        syncOfflineData();
+    }, []);
 
     const connectToSensor = async () => {
         try {
@@ -51,7 +65,6 @@ const PolarSensor = () => {
     };
     const disconnectSensor = async (deviceToRemove) => {
         const updatedDevices = devices.filter(({ device }) => device !== deviceToRemove);
-
         if (deviceToRemove.gatt.connected) {
             try {
                 await deviceToRemove.gatt.disconnect();
@@ -60,14 +73,12 @@ const PolarSensor = () => {
                 console.error("Failed to disconnect:", error);
             }
         }
-
         setDevices(updatedDevices);
         setMeasuringDevices((prev) => {
             const updatedState = { ...prev };
             delete updatedState[deviceToRemove.name];
             return updatedState;
         });
-
         setHeartRateData((prevData) => {
             const newData = { ...prevData };
             delete newData[deviceToRemove.name];
@@ -78,7 +89,12 @@ const PolarSensor = () => {
     const startMeasurement = async (device, characteristic) => {
         try {
             await characteristic.startNotifications();
-            characteristic.addEventListener("characteristicvaluechanged", (event) => handleData(event, device));
+            if (device.eventListener) {
+                characteristic.removeEventListener("characteristicvaluechanged", device.eventListener);
+            }
+            const handleDataWrapper = (event) => handleData(event, device);
+            device.eventListener = handleDataWrapper;
+            characteristic.addEventListener("characteristicvaluechanged", handleDataWrapper);
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: true }));
             console.log(`Started measurement for ${device.name}`);
         } catch (error) {
@@ -88,7 +104,10 @@ const PolarSensor = () => {
 
     const stopMeasurement = async (device, characteristic) => {
         try {
-            characteristic.removeEventListener("characteristicvaluechanged", (event) => handleData(event, device));
+            if (device.eventListener) {
+                characteristic.removeEventListener("characteristicvaluechanged", device.eventListener);
+                device.eventListener = null; // Remove reference after cleanup
+            }
             await characteristic.stopNotifications();
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: false }));
             console.log(`Stopped measurement for ${device.name}`);
@@ -97,27 +116,88 @@ const PolarSensor = () => {
         }
     };
 
+    const saveOfflineData = (device, heartRate, timestamp) => {
+        let offlineData = JSON.parse(localStorage.getItem("offlineHeartRateData")) || [];
+        if (offlineData.length > 0) {
+            const lastEntry = offlineData[offlineData.length - 1];
+            if (lastEntry.device_id === device.name && lastEntry.timestamp === timestamp) {
+                return; // Skip duplicate within the same second
+            }
+        }
+        offlineData.push({
+            device_id: device.name,
+            bpm: heartRate,
+            timestamp: timestamp, // Use the provided timestamp
+        });
+        localStorage.setItem("offlineHeartRateData", JSON.stringify(offlineData));
+    };
+
+
+    let lastSavedTimestamp = {}; // Store last saved timestamp per device
+
     const handleData = (event, device) => {
         let value = event.target.value;
         let heartRate = parseHeartRate(value);
 
+        // Get the exact measurement timestamp from the Bluetooth event
+        let eventTimestamp = new Date(event.timeStamp); // Bluetooth event timestamp
+        eventTimestamp.setMilliseconds(0); // Remove milliseconds for consistency
+        let timestampString = eventTimestamp.toISOString(); // Convert to ISO format
+
+        // Prevent duplicate entries for the same second
+        if (lastSavedTimestamp[device.name] === timestampString) {
+            return; // Skip duplicate within the same second
+        }
+        lastSavedTimestamp[device.name] = timestampString;
+
+        // Update UI state
         setHeartRateData((prevData) => ({
             ...prevData,
             [device.name]: [...(prevData[device.name] || []).slice(-50), heartRate], // Keep last 50 values
         }));
 
+        // Save offline data
+        saveOfflineData(device, heartRate, timestampString);
+
+        // Send data to the server
         fetch("http://localhost:5000/save-heart-rate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 device_id: device.name,
-                bpm: heartRate
+                bpm: heartRate,
+                timestamp: timestampString, // Send correct timestamp
             }),
         })
             .then((response) => response.json())
-            .then((data) => console.log(`Data saved for ${device.name}:`, data))
-            .catch((error) => console.error("Error saving data:", error));
+            .then((data) => console.log(`✅ Data saved for ${device.name}:`, data))
+            .catch((error) => console.error("❌ Error saving data:", error));
     };
+
+
+    const syncOfflineData = async () => {
+        let offlineData = JSON.parse(localStorage.getItem("offlineHeartRateData")) || [];
+        if (offlineData.length === 0) return; // No offline data to sync
+        const remainingData = [];
+        for (const entry of offlineData) {
+            try {
+                const response = await fetch("http://localhost:5000/save-heart-rate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(entry),
+                });
+                if (!response.ok) {
+                    throw new Error("Failed to sync offline data");
+                }
+                console.log(`✅ Synced offline data for ${entry.device_id} at ${entry.timestamp}`);
+            } catch (error) {
+                console.error("❌ Error syncing offline data:", error);
+                remainingData.push(entry); // Keep failed entries for next sync
+            }
+        }
+        localStorage.setItem("offlineHeartRateData", JSON.stringify(remainingData));
+    };
+    window.addEventListener("online", syncOfflineData);
 
     const parseHeartRate = (value) => {
         let data = new DataView(value.buffer);
