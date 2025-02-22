@@ -6,15 +6,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔹 Skapa MySQL-anslutning
+// 🔹 Create MySQL connection
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",
-    password: "4321", // Byt till ditt MySQL-lösenord
+    password: "Aprilapril23.",
     database: "sensor_data",
 });
 
-// 🔹 Kontrollera MySQL-anslutning
+// 🔹 Check MySQL connection
 db.connect((err) => {
     if (err) {
         console.error("❌ Database connection failed:", err);
@@ -23,46 +23,66 @@ db.connect((err) => {
     console.log("✅ Connected to MySQL database.");
 });
 
-// 🔹 API: Spara sensor-data (heart rate & accelerometer)
-app.post("/save-sensor-data", (req, res) => {
+// 🔹 Save sensor data (BPM & IMU separately)
+app.post("/save-sensor-data", async (req, res) => {
     const { timestamp, device_id, bpm, acc_x, acc_y, acc_z } = req.body;
 
-    if (!device_id || (!bpm && acc_x === null && acc_y === null && acc_z === null)) {
-        return res.status(400).json({ error: "❌ Device ID and at least one data point (BPM or accelerometer) required!" });
+    if (!timestamp || !device_id) {
+        return res.status(400).json({ error: "❌ Timestamp and Device ID are required!" });
     }
 
-    // 🔹 SQL Query för att spara data
-    const query = `
-        INSERT INTO polarsensorconnection.sensor_data (timestamp, device_id, bpm, acc_x, acc_y, acc_z)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `;
-
-
-    db.query(query, [timestamp, device_id, bpm, acc_x, acc_y, acc_z], (err, result) => {
-        if (err) {
-            console.error("❌ Database Insert Error:", err);
-            return res.status(500).json({ error: "Database insert failed!" });
+    try {
+        // 🩺 Store BPM in `sensor_data` if it's not null
+        if (bpm != null) {
+            const bpmQuery = `INSERT INTO sensor_data (timestamp, device_id, bpm) VALUES (?, ?, ?)`;
+            await db.promise().query(bpmQuery, [timestamp, device_id, bpm]);
+            console.log(`✅ BPM Inserted: ${device_id} - BPM: ${bpm}`);
         }
 
-        console.log(`✅ Data Inserted: ${device_id} - BPM: ${bpm} - X: ${acc_x}, Y: ${acc_y}, Z: ${acc_z}`);
+        // 📡 Store IMU data in `imu_data` if all values are provided
+        if (acc_x != null && acc_y != null && acc_z != null) {
+            const imuQuery = `INSERT INTO imu_data (timestamp, device_id, acc_x, acc_y, acc_z) VALUES (?, ?, ?, ?, ?)`;
+            await db.promise().query(imuQuery, [timestamp, device_id, acc_x, acc_y, acc_z]);
+            console.log(`✅ IMU Data Inserted: ${device_id} - X: ${acc_x}, Y: ${acc_y}, Z: ${acc_z}`);
+        }
+
         res.status(200).json({ message: "Data saved successfully!" });
-    });
+
+    } catch (error) {
+        console.error("❌ Database Insert Error:", error);
+        res.status(500).json({ error: "Database insert failed!" });
+    }
 });
 
-// 🔹 API: Hämta de senaste 50 värdena per enhet
+// 🔹 Get the latest 50 BPM readings
 app.get("/get-sensor-data/:device_id", (req, res) => {
     const { device_id } = req.params;
 
-    db.query("SELECT * FROM sensor_data WHERE device_id = ? ORDER BY timestamp DESC LIMIT 50", [device_id], (err, results) => {
-        if (err) {
-            console.error("❌ Failed to fetch data:", err);
-            return res.status(500).json({ error: "Database error" });
-        }
-        res.json(results);
-    });
+    db.query("SELECT * FROM sensor_data WHERE device_id = ? ORDER BY timestamp DESC LIMIT 50",
+        [device_id], (err, results) => {
+            if (err) {
+                console.error("❌ Failed to fetch data:", err);
+                return res.status(500).json({ error: "Database error" });
+            }
+            res.json(results);
+        });
 });
 
-// 🔹 Starta servern
+// 🔹 Get the latest 50 IMU readings
+app.get("/get-imu-data/:device_id", (req, res) => {
+    const { device_id } = req.params;
+
+    db.query("SELECT * FROM imu_data WHERE device_id = ? ORDER BY timestamp DESC LIMIT 50",
+        [device_id], (err, results) => {
+            if (err) {
+                console.error("❌ Failed to fetch IMU data:", err);
+                return res.status(500).json({ error: "Database error" });
+            }
+            res.json(results);
+        });
+});
+
+// 🔹 Start server
 app.listen(5000, () => {
     console.log("🚀 Server running on port 5000");
 });

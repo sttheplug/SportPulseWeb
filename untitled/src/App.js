@@ -4,7 +4,7 @@ import PolarSensor from "./PolarSensor"; // Import the component
 function App() {
   return (
       <div className="App">
-        <h1>Polar Sensor Data App</h1>
+        <h1>Sport Pulse Web</h1>
         <PolarSensor /> {/* Display the Polar Sensor component */}
       </div>
   );

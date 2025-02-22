@@ -12,8 +12,8 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
-    backdrop-filter: blur(5px);
+    height: 80vh;
+    backdrop-filter: blur(2px); /* Blurs everything behind the container */
 }
 
 h2 {
@@ -37,10 +37,71 @@ button {
     border-radius: 5px;
     transition: 0.3s ease-in-out;
     box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-    margin: 8px 0; /* Adds a small space between buttons */
+    margin: 20px 0; /* Adds a small space between buttons */
+}
+
+.button-group {
+    display: flex;
+    gap: 15px; /* Adds space between buttons */
+    justify-content: center;
+    margin-top: 10px;
 }
 
 button:hover {
     background: rgba(0, 255, 255, 1);
     transform: scale(1.05);
 }
+
+.sensor-card-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 15px;
+}
+
+/* 📊 Sensor Card */
+.sensor-card {
+    background: rgba(0, 0, 0, 0.7); /* Semi-transparent dark background */
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 20px;
+    width: 355px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 255, 255, 0.5);
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.chart-container {
+    background: rgba(0, 0, 0, 0.7); /* Semi-transparent dark background */
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 20px;
+    width: 350px; /* Match sensor card width */
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 255, 255, 0.5);
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    height: 335px; /* Increased height to match the card */
+    display: flex;
+    flex-direction: column; /* Ensure title and chart stack vertically */
+    justify-content: flex-start; /* Align title to the top */
+    align-items: center;
+    margin-left: 30px; /* Pushes it to the right */
+}
+
+/* Style for the heading inside the chart container */
+.chart-title {
+    font-size: 23px;
+    font-weight: bold;
+    color: white;
+    margin-bottom: 10px; /* Adds space between title and chart */
+}
+
+
+.heart-rate-display {
+    font-size: 16px;
+    color: #ff4d4d;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
