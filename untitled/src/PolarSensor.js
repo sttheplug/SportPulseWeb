@@ -34,16 +34,14 @@ const PolarSensor = () => {
         try {
             setConnecting(true);
             console.log("🔄 Requesting Bluetooth Device...");
-
             const device = await navigator.bluetooth.requestDevice({
                 filters: [{ namePrefix: "Polar" }],
                 optionalServices: ["heart_rate", "fb005c80-02e7-f387-1cad-8acd2d8df0c8"]
             });
-
             console.log(`🔗 Connected to ${device.name}`);
+            isConnected = true;
+            syncOfflineData(device.name);
             const server = await device.gatt.connect();
-
-            // 🫀 Heart Rate Service
             const heartRateService = await server.getPrimaryService("heart_rate");
             console.log(`✅ Found Heart Rate Service`);
             const heartRateCharacteristic = await heartRateService.getCharacteristic("00002a37-0000-1000-8000-00805f9b34fb");
@@ -157,17 +155,85 @@ const PolarSensor = () => {
             return newData;
         });
     };
+
+    let isConnected = false; // Track if device is online
+
+    const saveOfflineData = (deviceName, data, type) => {
+        // Don't save data to localStorage if the device is online
+        if (isConnected) return;
+
+        let offlineData = JSON.parse(localStorage.getItem("offlineData")) || {};
+
+        if (!offlineData[deviceName]) {
+            offlineData[deviceName] = { imu: [], heartRate: [] };
+        }
+
+        // Append new data instead of overwriting
+        offlineData[deviceName][type].push(data);
+
+        localStorage.setItem("offlineData", JSON.stringify(offlineData));
+        console.log("💾 Offline data stored:", offlineData);
+    };
+
+    const syncOfflineData = async (deviceName) => {
+        console.log(`🔄 syncOfflineData() called for: ${deviceName}`);
+
+        // Retrieve offline data from localStorage
+        let offlineData = JSON.parse(localStorage.getItem("offlineData")) || {};
+        console.log("📂 Current offlineData:", offlineData);
+
+        if (!offlineData[deviceName] || (!offlineData[deviceName].imu?.length && !offlineData[deviceName].heartRate?.length)) {
+            console.log(`✅ No offline data to sync for ${deviceName}`);
+            return;
+        }
+
+        console.log("📡 Syncing offline data for:", deviceName, offlineData[deviceName]);
+
+        try {
+            const response = await fetch("http://localhost:5000/save-offline-data", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deviceName, ...offlineData[deviceName] }),  // Ensure this is correct data
+            });
+
+            // Check if the response is JSON or text
+            let responseData;
+            try {
+                responseData = await response.json(); // Attempt to parse as JSON
+            } catch (e) {
+                responseData = await response.text(); // Fallback to text if JSON parsing fails
+            }
+
+            console.log("📡 Server Response:", responseData);
+
+            if (response.ok) {
+                console.log("✅ Offline data synced successfully!");
+
+                // Remove synced data from localStorage
+                delete offlineData[deviceName];
+                localStorage.setItem("offlineData", JSON.stringify(offlineData));
+            } else {
+                console.error("❌ Sync failed:", responseData);
+            }
+        } catch (error) {
+            console.error("❌ Error syncing offline data:", error);
+        }
+    };
+
+
     const handleHeartRate = (event, device) => {
         let value = event.target.value;
         let heartRate = parseHeartRate(value);
+        let timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
         setHeartRateData((prevData) => ({
             ...prevData,
             [device.name]: [...(prevData[device.name] || []), heartRate].slice(-50), // Keep last 50 values
         }));
         sendDataToBackend(device.name, heartRate, null, null, null);
+        saveOfflineData(device.name, { heartRate, timestamp }, "heartRate");
     };
 
-    let lastIMUSecond = {}; // Stores the last recorded second per device
+    let lastIMUSecond = {};
     const handleIMUData = (event, device) => {
         console.log(`📡 IMU Data Event Triggered for ${device.name}`);
         let value = event.target.value;
@@ -177,6 +243,7 @@ const PolarSensor = () => {
         }
         let data = new DataView(value.buffer);
         let now = Date.now();
+        const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
         let roundedSecond = Math.floor(now / 1000); // Round to nearest second
         try {
             let x = data.getInt16(10, true) * 0.0024 * 9.80665;
@@ -191,11 +258,12 @@ const PolarSensor = () => {
                 [device.name]: { x, y, z, timestamp: now },
             }));
             sendDataToBackend(device.name, null, x, y, z);
+            saveOfflineData(device.name, { x, y, z, timestamp }, "imu");
         } catch (error) {
             console.error("❌ IMU Data Processing Failed:", error);
         }
     };
-    
+
     const parseHeartRate = (value) => {
         let data = new DataView(value.buffer);
         let flags = data.getUint8(0);
@@ -203,8 +271,7 @@ const PolarSensor = () => {
     };
 
     const sendDataToBackend = (device_id, bpm, acc_x, acc_y, acc_z) => {
-        const timestamp = new Date().toISOString().slice(0, 19).replace("T", " "); // Converts to "YYYY-MM-DD HH:MM:SS"
-
+        const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
         fetch("http://localhost:5000/save-sensor-data", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -221,7 +288,6 @@ const PolarSensor = () => {
             .then(data => console.log(`✅ Data saved for ${device_id}:`, data))
             .catch(error => console.error("❌ Error saving data:", error));
     };
-
 
     return (
         <div className="container">
