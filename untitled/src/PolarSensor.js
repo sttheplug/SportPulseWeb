@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import "./PolarSensor.css";
-import {Line} from "react-chartjs-2";
+import {Bar, Line} from "react-chartjs-2";
 import {
     Chart as ChartJS,
     CategoryScale,
     LinearScale,
+    BarElement, // Required for Bar chart
     PointElement,
     LineElement,
     Title,
@@ -16,6 +17,7 @@ ChartJS.register(
     CategoryScale,
     LinearScale,
     PointElement,
+    BarElement, // Required for Bar chart
     LineElement,
     Title,
     Tooltip,
@@ -268,6 +270,39 @@ const PolarSensor = () => {
                             )}
                         </div>
                     </div>
+                    {imuData[device.name] && imuData[device.name].x && imuData[device.name].y && imuData[device.name].z && (
+                        <div className="chart-container">
+                            <h3 className="chart-title">IMU Data Monitor</h3>
+                            <Bar
+                                key={device.name} // Ensures a new instance is created per device
+                                data={{
+                                    labels: ["X", "Y", "Z"],
+                                    datasets: [{
+                                        label: `IMU Acceleration (${device.name})`,
+                                        data: [imuData[device.name]?.x || 0, imuData[device.name]?.y || 0, imuData[device.name]?.z || 0],
+                                        backgroundColor: ["blue", "green", "orange"],
+                                        borderColor: ["darkblue", "darkgreen", "darkorange"],
+                                        borderWidth: 2,
+                                    }]
+                                }}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    scales: { y: { beginAtZero: true } },
+                                    layout: {
+                                        padding: {
+                                            left: 10,
+                                            right: 10,
+                                            top: 10,
+                                            bottom: 40,
+                                        },
+                                    },
+                                }}
+                                style={{ width: "100%", height: "100%" }}
+                            />
+                        </div>
+                    )}
+
                     {heartRateData[device.name] && Array.isArray(heartRateData[device.name]) && heartRateData[device.name].length > 0 && (
                         <div className="chart-container">
                             {/* Heading inside the container */}
@@ -299,6 +334,7 @@ const PolarSensor = () => {
                             />
                         </div>
                     )}
+
                 </div>
             ))}
         </div>
