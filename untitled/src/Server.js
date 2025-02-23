@@ -32,14 +32,12 @@ app.post("/save-sensor-data", async (req, res) => {
     }
 
     try {
-        // 🩺 Store BPM in `sensor_data` if it's not null
         if (bpm != null) {
             const bpmQuery = `INSERT INTO sensor_data (timestamp, device_id, bpm) VALUES (?, ?, ?)`;
             await db.promise().query(bpmQuery, [timestamp, device_id, bpm]);
             console.log(`✅ BPM Inserted: ${device_id} - BPM: ${bpm}`);
         }
 
-        // 📡 Store IMU data in `imu_data` if all values are provided
         if (acc_x != null && acc_y != null && acc_z != null) {
             const imuQuery = `INSERT INTO imu_data (timestamp, device_id, acc_x, acc_y, acc_z) VALUES (?, ?, ?, ?, ?)`;
             await db.promise().query(imuQuery, [timestamp, device_id, acc_x, acc_y, acc_z]);
@@ -54,7 +52,6 @@ app.post("/save-sensor-data", async (req, res) => {
     }
 });
 
-// 🔹 Get the latest 50 BPM readings
 app.get("/get-sensor-data/:device_id", (req, res) => {
     const { device_id } = req.params;
 
@@ -68,7 +65,6 @@ app.get("/get-sensor-data/:device_id", (req, res) => {
         });
 });
 
-// 🔹 Get the latest 50 IMU readings
 app.get("/get-imu-data/:device_id", (req, res) => {
     const { device_id } = req.params;
 
@@ -82,7 +78,6 @@ app.get("/get-imu-data/:device_id", (req, res) => {
         });
 });
 
-// 🔹 Start server
 app.listen(5000, () => {
     console.log("🚀 Server running on port 5000");
 });

@@ -81,8 +81,7 @@ const PolarSensor = () => {
             }
             const heartRateHandler = (event) => handleHeartRate(event, device);
             const imuDataHandler = (event) => handleIMUData(event, device);
-            heartRateCharacteristic.addEventListener("characteristicvaluechanged", heartRateHandler);
-            imuDataCharacteristic.addEventListener("characteristicvaluechanged", imuDataHandler);
+            imuDataCharacteristic.addEventListener("characteristicvaluechanged", imuDataHandler);           heartRateCharacteristic.addEventListener("characteristicvaluechanged", heartRateHandler);
             setDevices((prevDevices) =>
                 prevDevices.map((d) =>
                     d.device === device
@@ -166,31 +165,35 @@ const PolarSensor = () => {
         sendDataToBackend(device.name, heartRate, null, null, null);
     };
 
+    let lastIMUSecond = {}; // Stores the last recorded second per device
     const handleIMUData = (event, device) => {
         console.log(`📡 IMU Data Event Triggered for ${device.name}`);
-
         let value = event.target.value;
         if (!value || value.byteLength < 16) {
             console.error("❌ IMU Data is too short, might be incorrect format!");
             return;
         }
-
         let data = new DataView(value.buffer);
+        let now = Date.now();
+        let roundedSecond = Math.floor(now / 1000); // Round to nearest second
         try {
             let x = data.getInt16(10, true) * 0.0024 * 9.80665;
             let y = data.getInt16(12, true) * 0.0024 * 9.80665;
             let z = data.getInt16(14, true) * 0.0024 * 9.80665;
-
+            if (lastIMUSecond[device.name] === roundedSecond) {
+                return;
+            }
+            lastIMUSecond[device.name] = roundedSecond;
             setImuData((prevData) => ({
                 ...prevData,
-                [device.name]: { x, y, z },
+                [device.name]: { x, y, z, timestamp: now },
             }));
             sendDataToBackend(device.name, null, x, y, z);
         } catch (error) {
             console.error("❌ IMU Data Processing Failed:", error);
         }
     };
-
+    
     const parseHeartRate = (value) => {
         let data = new DataView(value.buffer);
         let flags = data.getUint8(0);
