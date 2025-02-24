@@ -1,6 +1,10 @@
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+const { Parser } = require("json2csv"); // Lägg till json2csv för att konvertera JSON till CSV
+
 
 const app = express();
 app.use(cors());
@@ -10,7 +14,7 @@ app.use(express.json());
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",
-    password: "Aprilapril23.",
+    password: "4321Moses",
     database: "sensor_data",
 });
 
@@ -49,6 +53,72 @@ app.post("/save-sensor-data", async (req, res) => {
     } catch (error) {
         console.error("❌ Database Insert Error:", error);
         res.status(500).json({ error: "Database insert failed!" });
+    }
+});
+
+// Installera json2csv: npm install json2csv
+
+app.get("/download-data/:device_id", async (req, res) => {
+    const { device_id } = req.params;
+
+    try {
+        const [sensorData] = await db.promise().query(
+            "SELECT * FROM sensor_data WHERE device_id = ? ORDER BY timestamp ASC",
+            [device_id]
+        );
+
+        const [imuData] = await db.promise().query(
+            "SELECT * FROM imu_data WHERE device_id = ? ORDER BY timestamp ASC",
+            [device_id]
+        );
+
+        if (sensorData.length === 0 && imuData.length === 0) {
+            return res.status(404).json({ error: "Ingen data hittades för enheten." });
+        }
+
+        const mergedData = [];
+
+        // Kombinera sensor- och IMU-data i ett gemensamt format
+        sensorData.forEach((entry) => {
+            mergedData.push({
+                timestamp: entry.timestamp,
+                device_id: entry.device_id,
+                bpm: entry.bpm || "",
+                acc_x: "",
+                acc_y: "",
+                acc_z: "",
+            });
+        });
+
+        imuData.forEach((entry) => {
+            mergedData.push({
+                timestamp: entry.timestamp,
+                device_id: entry.device_id,
+                bpm: "",
+                acc_x: entry.acc_x,
+                acc_y: entry.acc_y,
+                acc_z: entry.acc_z,
+            });
+        });
+
+        // Konvertera till CSV
+        const fields = ["timestamp", "device_id", "bpm", "acc_x", "acc_y", "acc_z"];
+        const json2csvParser = new Parser({ fields });
+        const csv = json2csvParser.parse(mergedData);
+
+        const filePath = path.join(__dirname, `sensor_data_${device_id}.csv`);
+        fs.writeFileSync(filePath, csv);
+
+        res.download(filePath, `sensor_data_${device_id}.csv`, (err) => {
+            if (err) {
+                console.error("❌ Fel vid filnedladdning:", err);
+                res.status(500).send("Fel vid nedladdning av fil.");
+            }
+            fs.unlinkSync(filePath); // Radera filen efter nedladdning för att undvika skräp
+        });
+    } catch (error) {
+        console.error("❌ Fel vid generering av CSV:", error);
+        res.status(500).json({ error: "Fel vid generering av fil." });
     }
 });
 
