@@ -63,12 +63,12 @@ app.get("/download-data/:device_id", async (req, res) => {
 
     try {
         const [sensorData] = await db.promise().query(
-            "SELECT * FROM sensor_data WHERE device_id = ? ORDER BY timestamp ASC",
+            "SELECT timestamp, device_id, bpm FROM sensor_data WHERE device_id = ? ORDER BY timestamp ASC",
             [device_id]
         );
 
         const [imuData] = await db.promise().query(
-            "SELECT * FROM imu_data WHERE device_id = ? ORDER BY timestamp ASC",
+            "SELECT timestamp, device_id, acc_x, acc_y, acc_z FROM imu_data WHERE device_id = ? ORDER BY timestamp ASC",
             [device_id]
         );
 
@@ -76,51 +76,54 @@ app.get("/download-data/:device_id", async (req, res) => {
             return res.status(404).json({ error: "Ingen data hittades för enheten." });
         }
 
-        const mergedData = [];
+        const options = {
+            fields: ["timestamp", "device_id", "bpm"],
+            delimiter: ";", // Använd semikolon
+            header: true,
+            quote: ""       // Ta bort onödiga citationstecken
+        };
 
-        // Kombinera sensor- och IMU-data i ett gemensamt format
-        sensorData.forEach((entry) => {
-            mergedData.push({
-                timestamp: entry.timestamp,
-                device_id: entry.device_id,
-                bpm: entry.bpm || "",
-                acc_x: "",
-                acc_y: "",
-                acc_z: "",
-            });
-        });
+        const imuOptions = {
+            fields: ["timestamp", "device_id", "acc_x", "acc_y", "acc_z"],
+            delimiter: ";",
+            header: true,
+            quote: ""
+        };
 
-        imuData.forEach((entry) => {
-            mergedData.push({
-                timestamp: entry.timestamp,
-                device_id: entry.device_id,
-                bpm: "",
-                acc_x: entry.acc_x,
-                acc_y: entry.acc_y,
-                acc_z: entry.acc_z,
-            });
-        });
+        // 🎵 BPM-tabell
+        const bpmParser = new Parser(options);
+        const bpmCsv = bpmParser.parse(sensorData);
 
-        // Konvertera till CSV
-        const fields = ["timestamp", "device_id", "bpm", "acc_x", "acc_y", "acc_z"];
-        const json2csvParser = new Parser({ fields });
-        const csv = json2csvParser.parse(mergedData);
+        // 📈 IMU-tabell
+        const imuParser = new Parser(imuOptions);
+        const imuCsv = imuParser.parse(imuData);
+
+        // 📝 Kombinera CSV med tydliga sektioner
+        const combinedCsv =
+            `BPM Data:
+${bpmCsv}
+
+IMU Data:
+${imuCsv}`;
 
         const filePath = path.join(__dirname, `sensor_data_${device_id}.csv`);
-        fs.writeFileSync(filePath, csv);
+        fs.writeFileSync(filePath, combinedCsv);
 
         res.download(filePath, `sensor_data_${device_id}.csv`, (err) => {
             if (err) {
                 console.error("❌ Fel vid filnedladdning:", err);
                 res.status(500).send("Fel vid nedladdning av fil.");
             }
-            fs.unlinkSync(filePath); // Radera filen efter nedladdning för att undvika skräp
+            fs.unlinkSync(filePath); // Radera filen efter nedladdning
         });
     } catch (error) {
         console.error("❌ Fel vid generering av CSV:", error);
         res.status(500).json({ error: "Fel vid generering av fil." });
     }
 });
+
+
+
 
 app.get("/get-sensor-data/:device_id", (req, res) => {
     const { device_id } = req.params;
