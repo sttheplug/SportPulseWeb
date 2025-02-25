@@ -1,6 +1,10 @@
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+const { Parser } = require("json2csv"); // Lägg till json2csv för att konvertera JSON till CSV
+
 
 const app = express();
 app.use(cors());
@@ -10,7 +14,7 @@ app.use(express.json());
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",
-    password: "Aprilapril23.",
+    password: "4321Moses",
     database: "sensor_data",
 });
 
@@ -77,6 +81,75 @@ app.post("/save-offline-data", async (req, res) => {
         res.status(500).json({ error: "Database insert failed!" });
     }
 });
+
+// Installera json2csv: npm install json2csv
+
+app.get("/download-data/:device_id", async (req, res) => {
+    const { device_id } = req.params;
+
+    try {
+        const [sensorData] = await db.promise().query(
+            "SELECT timestamp, device_id, bpm FROM sensor_data WHERE device_id = ? ORDER BY timestamp ASC",
+            [device_id]
+        );
+
+        const [imuData] = await db.promise().query(
+            "SELECT timestamp, device_id, acc_x, acc_y, acc_z FROM imu_data WHERE device_id = ? ORDER BY timestamp ASC",
+            [device_id]
+        );
+
+        if (sensorData.length === 0 && imuData.length === 0) {
+            return res.status(404).json({ error: "Ingen data hittades för enheten." });
+        }
+
+        const options = {
+            fields: ["timestamp", "device_id", "bpm"],
+            delimiter: ";", // Använd semikolon
+            header: true,
+            quote: ""       // Ta bort onödiga citationstecken
+        };
+
+        const imuOptions = {
+            fields: ["timestamp", "device_id", "acc_x", "acc_y", "acc_z"],
+            delimiter: ";",
+            header: true,
+            quote: ""
+        };
+
+        // 🎵 BPM-tabell
+        const bpmParser = new Parser(options);
+        const bpmCsv = bpmParser.parse(sensorData);
+
+        // 📈 IMU-tabell
+        const imuParser = new Parser(imuOptions);
+        const imuCsv = imuParser.parse(imuData);
+
+        // 📝 Kombinera CSV med tydliga sektioner
+        const combinedCsv =
+            `BPM Data:
+${bpmCsv}
+
+IMU Data:
+${imuCsv}`;
+
+        const filePath = path.join(__dirname, `sensor_data_${device_id}.csv`);
+        fs.writeFileSync(filePath, combinedCsv);
+
+        res.download(filePath, `sensor_data_${device_id}.csv`, (err) => {
+            if (err) {
+                console.error("❌ Fel vid filnedladdning:", err);
+                res.status(500).send("Fel vid nedladdning av fil.");
+            }
+            fs.unlinkSync(filePath); // Radera filen efter nedladdning
+        });
+    } catch (error) {
+        console.error("❌ Fel vid generering av CSV:", error);
+        res.status(500).json({ error: "Fel vid generering av fil." });
+    }
+});
+
+
+
 
 app.get("/get-sensor-data/:device_id", (req, res) => {
     const { device_id } = req.params;

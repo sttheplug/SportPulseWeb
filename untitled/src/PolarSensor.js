@@ -30,6 +30,7 @@ const PolarSensor = () => {
     const [imuData, setImuData] = useState({});
     const [measuringDevices, setMeasuringDevices] = useState({});
     const [connecting, setConnecting] = useState(false);
+    const [downloadReadyDevices, setDownloadReadyDevices] = useState({});
 
     const connectToSensor = async () => {
         try {
@@ -107,28 +108,28 @@ const PolarSensor = () => {
                 console.error("❌ Device not found");
                 return;
             }
+
             const { heartRateCharacteristic, imuDataCharacteristic, heartRateHandler, imuDataHandler } = deviceData;
             await heartRateCharacteristic.stopNotifications();
             await imuDataCharacteristic.stopNotifications();
-            if (heartRateHandler) {
-                heartRateCharacteristic.removeEventListener("characteristicvaluechanged", heartRateHandler);
-            }
-            if (imuDataHandler) {
-                imuDataCharacteristic.removeEventListener("characteristicvaluechanged", imuDataHandler);
-            }
+
+            if (heartRateHandler) heartRateCharacteristic.removeEventListener("characteristicvaluechanged", heartRateHandler);
+            if (imuDataHandler) imuDataCharacteristic.removeEventListener("characteristicvaluechanged", imuDataHandler);
+
             setDevices((prevDevices) =>
-                prevDevices.map((d) =>
-                    d.device === device
-                        ? { ...d, heartRateHandler: null, imuDataHandler: null }
-                        : d
-                )
+                prevDevices.map((d) => d.device === device ? { ...d, heartRateHandler: null, imuDataHandler: null } : d)
             );
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: false }));
+
+            // ✅ Markera enheten som redo för nedladdning
+            setDownloadReadyDevices((prev) => ({ ...prev, [device.name]: true }));
+
             console.log(`✅ Measurement stopped for ${device.name}`);
         } catch (error) {
             console.error("❌ Error stopping measurement:", error);
         }
     };
+
 
 
 
@@ -142,6 +143,7 @@ const PolarSensor = () => {
                 console.error("Failed to disconnect:", error);
             }
         }
+        setDownloadReadyDevices((prev) => { const newReady = { ...prev }; delete newReady[deviceToRemove.name]; return newReady; });
         setDevices(updatedDevices);
         setHeartRateData((prevData) => {
             const newData = { ...prevData };
@@ -402,6 +404,16 @@ const PolarSensor = () => {
         }
     };
 
+    const downloadData = (device) => {
+        const link = document.createElement("a");
+        link.href = `http://localhost:5000/download-data/${device.name}`;
+        link.setAttribute("download", `sensor_data_${device.name}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+
 
 
 
@@ -448,6 +460,11 @@ const PolarSensor = () => {
                             ) : (
                                 <button className="action-btn" onClick={() => stopMeasurement(device)}>
                                     Stop Measurement
+                                </button>
+                            )}
+                            {downloadReadyDevices[device.name] && (
+                                <button className="action-btn" onClick={() => downloadData(device)}>
+                                    Ladda ner Data
                                 </button>
                             )}
                         </div>
