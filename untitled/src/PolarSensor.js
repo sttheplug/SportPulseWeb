@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import "./PolarSensor.css";
 import {Bar, Line} from "react-chartjs-2";
+import { openDB } from "idb";
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -39,8 +40,6 @@ const PolarSensor = () => {
                 optionalServices: ["heart_rate", "fb005c80-02e7-f387-1cad-8acd2d8df0c8"]
             });
             console.log(`🔗 Connected to ${device.name}`);
-            isConnected = true;
-            syncOfflineData(device.name);
             const server = await device.gatt.connect();
             const heartRateService = await server.getPrimaryService("heart_rate");
             console.log(`✅ Found Heart Rate Service`);
@@ -156,24 +155,117 @@ const PolarSensor = () => {
         });
     };
 
-    let isConnected = false; // Track if device is online
-
-    const saveOfflineData = (deviceName, data, type) => {
-        // Don't save data to localStorage if the device is online
-        if (isConnected) return;
-
-        let offlineData = JSON.parse(localStorage.getItem("offlineData")) || {};
-
-        if (!offlineData[deviceName]) {
-            offlineData[deviceName] = { imu: [], heartRate: [] };
-        }
-
-        // Append new data instead of overwriting
-        offlineData[deviceName][type].push(data);
-
-        localStorage.setItem("offlineData", JSON.stringify(offlineData));
-        console.log("💾 Offline data stored:", offlineData);
+    const initializeDB = async () => {
+        return openDB("sensorDB", 1, {
+            upgrade(db) {
+                if (!db.objectStoreNames.contains("heartRate")) {
+                    db.createObjectStore("heartRate", { keyPath: "id", autoIncrement: true });
+                    console.log("💾 Created object store: heartRate");
+                }
+                if (!db.objectStoreNames.contains("imu")) {
+                    db.createObjectStore("imu", { keyPath: "id", autoIncrement: true });
+                }
+            }
+        });
     };
+    const saveOfflineData = async (deviceName, data, type) => {
+        try {
+            let db = await initializeDB();
+            if (!db.objectStoreNames.contains(type)) {
+                console.warn(`⚠️ Skipping ${type}, object store does not exist.`);
+                return;
+            }
+            const tx = db.transaction(type, "readwrite");
+            const store = tx.objectStore(type);
+            const result = await store.add({ device_id: deviceName, ...data });
+            await tx.done;
+            console.log(`💾 Successfully saved offline ${type} data:`, { id: result, ...data });
+        } catch (error) {
+            console.error("❌ Failed to save offline data:", error);
+        }
+    };
+
+    const sendOfflineData = async () => {
+        try {
+            let db = await initializeDB();
+            let existingStores = Array.from(db.objectStoreNames).filter(store =>
+                ["heartRate", "imu"].includes(store)
+            );
+            if (existingStores.length === 0) {
+                console.warn("⚠️ No valid object stores found, skipping offline data send.");
+                return;
+            }
+
+            for (const type of existingStores) {
+                let tx = db.transaction(type, "readwrite");
+                let store = tx.objectStore(type);
+                let allData = await store.getAll();
+
+                for (let data of allData) {
+                    try {
+                        let requestBody = {
+                            timestamp: data.timestamp,
+                            device_id: data.device_id,
+                        };
+
+                        if (type === "heartRate") {
+                            requestBody.bpm = data.bpm;
+                        } else if (type === "imu") {
+                            requestBody.acc_x = data.acc_x;
+                            requestBody.acc_y = data.acc_y;
+                            requestBody.acc_z = data.acc_z;
+                        }
+
+                        let response = await fetch("http://localhost:5000/save-sensor-data", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(requestBody),
+                        });
+
+                        if (response.ok) {
+                            console.log(`✅ Successfully sent offline ${type} data for ${data.device_id}`);
+                            let deleteTx = db.transaction(type, "readwrite");
+                            let deleteStore = deleteTx.objectStore(type);
+                            deleteStore.delete(data.id);
+                            await deleteTx.done;
+                        } else {
+                            console.warn(`⚠️ Failed to send offline ${type} data. Server Response:`, await response.text());
+                        }
+                    } catch (error) {
+                        console.error("❌ Error sending offline data:", error);
+                        return; // Exit loop if still offline
+                    }
+                }
+                await tx.done;
+            }
+        } catch (error) {
+            console.error("❌ Error accessing offline database:", error);
+        }
+    };
+    window.addEventListener("online", sendOfflineData);
+    const checkConnectionAndSendOfflineData = async () => {
+        if (!navigator.onLine) {
+            console.log("📴 Offline. Waiting for connection...");
+            return; // Exit if offline
+        }
+        console.log("🌍 Online! Checking for offline data...");
+        let db = await initializeDB();
+        let hasData = false;
+        for (const type of ["heartRate", "imu"]) {
+            let count = await db.count(type); // Check if any data exists
+            if (count > 0) {
+                hasData = true;
+                break; // No need to check further, data exists
+            }
+        }
+        if (hasData) {
+            console.log("📤 Sending stored offline data...");
+            await sendOfflineData();
+        } else {
+            console.log("✅ No offline data found.");
+        }
+    };
+    setInterval(checkConnectionAndSendOfflineData, 30000);
 
     const syncOfflineData = async (deviceName) => {
         console.log(`🔄 syncOfflineData() called for: ${deviceName}`);
@@ -220,17 +312,14 @@ const PolarSensor = () => {
         }
     };
 
-
     const handleHeartRate = (event, device) => {
         let value = event.target.value;
         let heartRate = parseHeartRate(value);
-        let timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
         setHeartRateData((prevData) => ({
             ...prevData,
             [device.name]: [...(prevData[device.name] || []), heartRate].slice(-50), // Keep last 50 values
         }));
         sendDataToBackend(device.name, heartRate, null, null, null);
-        saveOfflineData(device.name, { heartRate, timestamp }, "heartRate");
     };
 
     let lastIMUSecond = {};
@@ -243,7 +332,6 @@ const PolarSensor = () => {
         }
         let data = new DataView(value.buffer);
         let now = Date.now();
-        const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
         let roundedSecond = Math.floor(now / 1000); // Round to nearest second
         try {
             let x = data.getInt16(10, true) * 0.0024 * 9.80665;
@@ -258,7 +346,6 @@ const PolarSensor = () => {
                 [device.name]: { x, y, z, timestamp: now },
             }));
             sendDataToBackend(device.name, null, x, y, z);
-            saveOfflineData(device.name, { x, y, z, timestamp }, "imu");
         } catch (error) {
             console.error("❌ IMU Data Processing Failed:", error);
         }
@@ -270,24 +357,53 @@ const PolarSensor = () => {
         return (flags & 0x01) ? data.getUint16(1, true) : data.getUint8(1);
     };
 
-    const sendDataToBackend = (device_id, bpm, acc_x, acc_y, acc_z) => {
-        const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
-        fetch("http://localhost:5000/save-sensor-data", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                timestamp,  // ✅ Correct format
-                device_id,
-                bpm,
-                acc_x,
-                acc_y,
-                acc_z
-            }),
-        })
-            .then(response => response.json())
-            .then(data => console.log(`✅ Data saved for ${device_id}:`, data))
-            .catch(error => console.error("❌ Error saving data:", error));
+    const sendDataToBackend = async (deviceName, heartRate, x, y, z) => {
+        let now = new Date();
+        now.setMilliseconds(0);
+        let timestampString = now.toISOString().slice(0, 19).replace("T", " ");
+        let dataToSend = {
+            timestamp: timestampString,
+            device_id: deviceName,
+            bpm: heartRate,
+            acc_x: x,
+            acc_y: y,
+            acc_z: z
+        };
+
+        try {
+            if (!navigator.onLine) {
+                throw new Error("Offline Mode: Saving Data Locally");
+            }
+
+            let response = await fetch("http://localhost:5000/save-sensor-data", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dataToSend),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            console.log("📡 Data sent successfully!");
+        } catch (error) {
+            console.warn("⚠️ Failed to send data, saving offline...", error);
+            let offlineData = { timestamp: timestampString };
+
+            if (heartRate !== null) {
+                offlineData.bpm = heartRate;
+                await saveOfflineData(deviceName, offlineData, "heartRate");
+            } else {
+                offlineData.acc_x = x;
+                offlineData.acc_y = y;
+                offlineData.acc_z = z;
+                await saveOfflineData(deviceName, offlineData, "imu");
+            }
+        }
     };
+
+
+
 
     return (
         <div className="container">
