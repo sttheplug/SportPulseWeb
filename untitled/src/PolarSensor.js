@@ -30,6 +30,8 @@ const PolarSensor = () => {
     const [measuringDevices, setMeasuringDevices] = useState({});
     const [connecting, setConnecting] = useState(false);
     const [downloadReadyDevices, setDownloadReadyDevices] = useState({});
+    const [deviceNotes, setDeviceNotes] = useState({});
+
 
     const connectToSensor = async () => {
         try {
@@ -205,24 +207,27 @@ const PolarSensor = () => {
     };
 
     const sendDataToBackend = (device_id, bpm, acc_x, acc_y, acc_z) => {
-        const timestamp = new Date().toISOString().slice(0, 19).replace("T", " "); // Converts to "YYYY-MM-DD HH:MM:SS"
+        const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+        const note = deviceNotes[device_id] || "";
 
         fetch("http://localhost:5000/save-sensor-data", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                timestamp,  // ✅ Correct format
+                timestamp,
                 device_id,
                 bpm,
                 acc_x,
                 acc_y,
-                acc_z
+                acc_z,
+                note
             }),
         })
             .then(response => response.json())
             .then(data => console.log(`✅ Data saved for ${device_id}:`, data))
             .catch(error => console.error("❌ Error saving data:", error));
     };
+
 
     const downloadData = (device) => {
         const link = document.createElement("a");
@@ -258,6 +263,15 @@ const PolarSensor = () => {
                 <div key={device.id} className="sensor-card-container">
                     <div className="sensor-card">
                         <h3>{device.name}</h3>
+                        <div>
+                            <label><strong>Notering:</strong></label>
+                            <input
+                                type="text"
+                                value={deviceNotes[device.name] || ""}
+                                onChange={(e) => setDeviceNotes({ ...deviceNotes, [device.name]: e.target.value })}
+                                placeholder="Ange notering"
+                            />
+                        </div>
                         <p><strong>Heart Rate:</strong> {heartRateData[device.name]?.slice(-1)[0] || "No Data"} BPM</p>
                         {imuData[device.name] ? (
                             <div className="imu-container">
@@ -354,6 +368,7 @@ const PolarSensor = () => {
 
                 </div>
             ))}
+
         </div>
     );
 };
