@@ -14,7 +14,7 @@ app.use(express.json());
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",
-    password: "4321Moses",
+    password: "Aprilapril23.",
     database: "sensor_data",
 });
 
@@ -104,9 +104,9 @@ app.get("/download-data/:device_id", async (req, res) => {
 
         const options = {
             fields: ["timestamp", "device_id", "bpm"],
-            delimiter: ";", // Använd semikolon
+            delimiter: ";",
             header: true,
-            quote: ""       // Ta bort onödiga citationstecken
+            quote: ""
         };
 
         const imuOptions = {

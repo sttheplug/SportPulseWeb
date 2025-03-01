@@ -70,6 +70,7 @@ button:hover {
     text-align: center;
     box-shadow: 0 4px 15px rgba(0, 255, 255, 0.5);
     transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    position: relative; /* Ensures the download link stays within the card */
 }
 
 .chart-container {
@@ -85,7 +86,7 @@ button:hover {
     display: flex;
     flex-direction: column; /* Ensure title and chart stack vertically */
     justify-content: flex-start; /* Align title to the top */
-    align-items: center;
+    align-items: center ;
     margin-left: 30px; /* Pushes it to the right */
 }
 
@@ -105,3 +106,33 @@ button:hover {
     margin-bottom: 10px;
 }
 
+
+.download-container {
+    position: absolute; /* Position it at the bottom of the card */
+    bottom: 3px; /* Adjust this value to control the distance from the bottom */
+    left: 50%; /* Centers the link horizontally */
+    transform: translateX(-50%); /* Ensures perfect centering */
+    text-align: center; /* Ensures the link is centered */
+}
+
+/* Style for the download link */
+.download-link {
+    color: rgba(0, 180, 180, 1);
+    text-decoration: underline;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px; /* Adds padding only to the link, not affecting the buttons */
+    white-space: nowrap; /* Prevents the text from breaking into a new line */
+}
+
+.download-link:hover {
+    text-decoration: none;
+    color: rgba(0, 150, 150, 1);
+}
+
+.download-icon {
+    width: 20px;
+    height: 20px;
+    margin-left: 5px; /* Adds some space between text and icon */
+}

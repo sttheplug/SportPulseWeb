@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import "./PolarSensor.css";
 import {Bar, Line} from "react-chartjs-2";
 import { openDB } from "idb";
+import { Download } from "lucide-react";
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -121,7 +122,6 @@ const PolarSensor = () => {
             );
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: false }));
 
-            // ✅ Markera enheten som redo för nedladdning
             setDownloadReadyDevices((prev) => ({ ...prev, [device.name]: true }));
 
             console.log(`✅ Measurement stopped for ${device.name}`);
@@ -129,9 +129,6 @@ const PolarSensor = () => {
             console.error("❌ Error stopping measurement:", error);
         }
     };
-
-
-
 
     const disconnectSensor = async (deviceToRemove) => {
         const updatedDevices = devices.filter(({ device }) => device !== deviceToRemove);
@@ -269,51 +266,6 @@ const PolarSensor = () => {
     };
     setInterval(checkConnectionAndSendOfflineData, 30000);
 
-    const syncOfflineData = async (deviceName) => {
-        console.log(`🔄 syncOfflineData() called for: ${deviceName}`);
-
-        // Retrieve offline data from localStorage
-        let offlineData = JSON.parse(localStorage.getItem("offlineData")) || {};
-        console.log("📂 Current offlineData:", offlineData);
-
-        if (!offlineData[deviceName] || (!offlineData[deviceName].imu?.length && !offlineData[deviceName].heartRate?.length)) {
-            console.log(`✅ No offline data to sync for ${deviceName}`);
-            return;
-        }
-
-        console.log("📡 Syncing offline data for:", deviceName, offlineData[deviceName]);
-
-        try {
-            const response = await fetch("http://localhost:5000/save-offline-data", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deviceName, ...offlineData[deviceName] }),  // Ensure this is correct data
-            });
-
-            // Check if the response is JSON or text
-            let responseData;
-            try {
-                responseData = await response.json(); // Attempt to parse as JSON
-            } catch (e) {
-                responseData = await response.text(); // Fallback to text if JSON parsing fails
-            }
-
-            console.log("📡 Server Response:", responseData);
-
-            if (response.ok) {
-                console.log("✅ Offline data synced successfully!");
-
-                // Remove synced data from localStorage
-                delete offlineData[deviceName];
-                localStorage.setItem("offlineData", JSON.stringify(offlineData));
-            } else {
-                console.error("❌ Sync failed:", responseData);
-            }
-        } catch (error) {
-            console.error("❌ Error syncing offline data:", error);
-        }
-    };
-
     const handleHeartRate = (event, device) => {
         let value = event.target.value;
         let heartRate = parseHeartRate(value);
@@ -435,7 +387,6 @@ const PolarSensor = () => {
                     </>
                 )}
             </div>
-
             {devices.map(({ device }) => (
                 <div key={device.id} className="sensor-card-container">
                     <div className="sensor-card">
@@ -463,9 +414,18 @@ const PolarSensor = () => {
                                 </button>
                             )}
                             {downloadReadyDevices[device.name] && (
-                                <button className="action-btn" onClick={() => downloadData(device)}>
-                                    Ladda ner Data
-                                </button>
+                                <div className="download-container">
+                                    <a
+                                        href="#"
+                                        className="download-link"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            downloadData(device);
+                                        }}
+                                    >
+                                        Download Data <Download size={16} className="download-icon" />
+                                    </a>
+                                </div>
                             )}
                         </div>
                     </div>
