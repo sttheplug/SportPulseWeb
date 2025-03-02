@@ -12,7 +12,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 80vh;
+    height: 90vh;
     backdrop-filter: blur(2px); /* Blurs everything behind the container */
 }
 
@@ -52,6 +52,25 @@ button:hover {
     transform: scale(1.05);
 }
 
+.cbutton {
+    background: rgba(0, 255, 255, 0.7);
+    color: black;
+    border: none;
+    padding: 15px 30px;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: 0.3s ease-in-out;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    margin-bottom: 120px;
+    margin-right: 10px;
+}
+
+.cbutton:hover {
+    background: rgba(0, 255, 255, 1);
+    transform: scale(1.05);
+}
+
 .sensor-card-container {
     display: flex;
     justify-content: center;
@@ -70,6 +89,7 @@ button:hover {
     text-align: center;
     box-shadow: 0 4px 15px rgba(0, 255, 255, 0.5);
     transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    position: relative; /* Ensures the download link stays within the card */
 }
 
 .chart-container {
@@ -85,7 +105,7 @@ button:hover {
     display: flex;
     flex-direction: column; /* Ensure title and chart stack vertically */
     justify-content: flex-start; /* Align title to the top */
-    align-items: center;
+    align-items: center ;
     margin-left: 30px; /* Pushes it to the right */
 }
 
@@ -104,4 +124,140 @@ button:hover {
     font-weight: bold;
     margin-bottom: 10px;
 }
+
+
+.download-container {
+    position: absolute; /* Position it at the bottom of the card */
+    bottom: 3px; /* Adjust this value to control the distance from the bottom */
+    left: 50%; /* Centers the link horizontally */
+    transform: translateX(-50%); /* Ensures perfect centering */
+    text-align: center; /* Ensures the link is centered */
+}
+
+/* Style for the download link */
+.download-link {
+    color: rgba(0, 180, 180, 1);
+    text-decoration: underline;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px; /* Adds padding only to the link, not affecting the buttons */
+    white-space: nowrap; /* Prevents the text from breaking into a new line */
+}
+
+.download-link:hover {
+    text-decoration: none;
+    color: rgba(0, 150, 150, 1);
+}
+
+.download-icon {
+    width: 20px;
+    height: 20px;
+    margin-left: 5px; /* Adds some space between text and icon */
+}
+
+/* 📝 Note Input - Matches Sensor Card */
+.note-container {
+    text-align: left; /* Aligns label properly */
+    margin-right: 15px; /* Adds some space between text and icon */
+
+}
+
+.note-label {
+    font-size: 14px;
+    font-weight: bold;
+    color: rgba(0, 255, 255, 0.8); /* Glowing cyan text */
+    display: block;
+    margin-bottom: 5px;
+}
+
+.note-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid rgba(0, 255, 255, 0.5); /* Cyan border */
+    background: rgba(0, 0, 0, 0.6); /* Dark semi-transparent background */
+    color: white;
+    border-radius: 8px;
+    outline: none;
+    transition: 0.3s ease-in-out;
+    font-size: 14px;
+    min-height: auto; /* Remove extra height if set */
+}
+
+.note-input::placeholder {
+    color: rgba(255, 255, 255, 0.5); /* Faded white text */
+    font-style: italic;
+}
+
+.note-input:focus {
+    border-color: rgba(0, 255, 255, 1); /* Brighter cyan on focus */
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+}
+
+.app-title {
+    font-size: 2.5rem; /* Larger text */
+    font-weight: bold;
+    color: rgba(0, 255, 255, 0.9); /* Bright cyan glow */
+    text-shadow: 0px 0px 10px rgba(0, 255, 255, 0.8),
+    0px 0px 20px rgba(0, 255, 255, 0.6); /* Glowing effect */
+    margin-bottom: 20px;
+    letter-spacing: 2px; /* Slightly spaced letters */
+    text-transform: uppercase;
+}
+
+
+/* Data Container */
+.data-container {
+    display: flex;
+    justify-content: space-between; /* Aligns heart rate and IMU data side by side */
+    gap: 15px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* Cards for Data */
+.data-card {
+    background: rgba(0, 0, 0, 0.7); /* Semi-transparent dark background */
+    border-radius: 12px;
+    padding: 10px;
+    flex: 1;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 255, 255, 0.5);
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+/* Heart Rate Card */
+.heart-rate-card {
+    border-left: 5px solid rgba(255, 69, 58, 0.8); /* Red left border for emphasis */
+}
+
+.heart-rate-value {
+    font-size: 1.5rem;
+    color: #ff4d4d;
+    font-weight: bold;
+}
+
+/* IMU Data Card */
+.imu-card {
+    border-left: 5px solid rgba(0, 255, 255, 0.8); /* Cyan left border for IMU */
+}
+
+.imu-values p {
+    font-size: 14px;
+    margin: 5px 0;
+}
+
+/* IMU Value Styling */
+.imu-value {
+    color: #00ffff;
+    font-weight: bold;
+}
+
+/* No Data Text */
+.no-data {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+}
+
 
