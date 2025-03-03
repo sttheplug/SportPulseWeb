@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, {useEffect, useState} from "react";
 import "./PolarSensor.css";
 import {Bar, Line} from "react-chartjs-2";
 import { Download } from "lucide-react";
+import { openDB } from "idb"; // Import idb library for easy IndexedDB handling
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -32,22 +33,16 @@ const PolarSensor = () => {
     const [connecting, setConnecting] = useState(false);
     const [downloadReadyDevices, setDownloadReadyDevices] = useState({});
     const [deviceNotes, setDeviceNotes] = useState({});
-
-
     const connectToSensor = async () => {
         try {
             setConnecting(true);
             console.log("🔄 Requesting Bluetooth Device...");
-
             const device = await navigator.bluetooth.requestDevice({
                 filters: [{ namePrefix: "Polar" }],
                 optionalServices: ["heart_rate", "fb005c80-02e7-f387-1cad-8acd2d8df0c8"]
             });
-
             console.log(`🔗 Connected to ${device.name}`);
             const server = await device.gatt.connect();
-
-            // 🫀 Heart Rate Service
             const heartRateService = await server.getPrimaryService("heart_rate");
             console.log(`✅ Found Heart Rate Service`);
             const heartRateCharacteristic = await heartRateService.getCharacteristic("00002a37-0000-1000-8000-00805f9b34fb");
@@ -62,6 +57,10 @@ const PolarSensor = () => {
                 { device, heartRateCharacteristic, imuDataCharacteristic, imuControlCharacteristic }
             ]);
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: false }));
+            if (navigator.onLine) {
+                console.log("🌐 Online and Connected to Polar Sensor → Syncing Offline Data...");
+                await syncOfflineData();
+            }
         } catch (error) {
             console.error("❌ Connection failed:", error);
         } finally {
@@ -85,8 +84,12 @@ const PolarSensor = () => {
             if (deviceData.imuDataHandler) {
                 imuDataCharacteristic.removeEventListener("characteristicvaluechanged", deviceData.imuDataHandler);
             }
-            const heartRateHandler = (event) => handleHeartRate(event, device);
-            const imuDataHandler = (event) => handleIMUData(event, device);
+            const heartRateHandler = (event) => {
+                handleHeartRate(event, device);
+            };
+            const imuDataHandler = (event) => {
+                handleIMUData(event, device);
+            };
             imuDataCharacteristic.addEventListener("characteristicvaluechanged", imuDataHandler);           heartRateCharacteristic.addEventListener("characteristicvaluechanged", heartRateHandler);
             setDevices((prevDevices) =>
                 prevDevices.map((d) =>
@@ -105,7 +108,6 @@ const PolarSensor = () => {
             console.error("❌ Error starting measurement:", error);
         }
     };
-
     const stopMeasurement = async (device) => {
         try {
             console.log(`🛑 Stopping measurement for ${device.name}`);
@@ -126,18 +128,12 @@ const PolarSensor = () => {
                 prevDevices.map((d) => d.device === device ? { ...d, heartRateHandler: null, imuDataHandler: null } : d)
             );
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: false }));
-
-            // ✅ Markera enheten som redo för nedladdning
             setDownloadReadyDevices((prev) => ({ ...prev, [device.name]: true }));
-
             console.log(`✅ Measurement stopped for ${device.name}`);
         } catch (error) {
             console.error("❌ Error stopping measurement:", error);
         }
     };
-
-
-
 
     const disconnectSensor = async (deviceToRemove) => {
         const updatedDevices = devices.filter(({ device }) => device !== deviceToRemove);
@@ -169,6 +165,11 @@ const PolarSensor = () => {
             ...prevData,
             [device.name]: [...(prevData[device.name] || []), heartRate].slice(-50), // Keep last 50 values
         }));
+        if (!navigator.onLine) {
+            console.log("📴 Offline Mode: Storing Heart Rate in IndexedDB");
+            storeHeartRateOffline(event, device);
+            return;
+        }
         sendDataToBackend(device.name, heartRate, null, null, null);
     };
 
@@ -195,12 +196,98 @@ const PolarSensor = () => {
                 ...prevData,
                 [device.name]: { x, y, z, timestamp: now },
             }));
+            if (!navigator.onLine) {
+                console.log("📴 Offline Mode: Storing Heart Rate in IndexedDB");
+                storeIMUDataOffline(event, device);
+                return;
+            }
             sendDataToBackend(device.name, null, x, y, z);
         } catch (error) {
             console.error("❌ IMU Data Processing Failed:", error);
         }
     };
-    
+
+    const syncOfflineData = async () => {
+        if (!navigator.onLine) {
+            console.log("🚫 No internet connection. Syncing paused.");
+            return;
+        }
+
+        try {
+            const db = await dbPromise; // Ensure the database is open
+            console.log("🔄 Syncing offline data...");
+            const heartRateData = await db.getAll("heartRate");
+            const imuData = await db.getAll("imuData");
+            console.log(`📊 Syncing Data: Heart Rate = ${heartRateData.length}, IMU = ${imuData.length}`);
+            if (heartRateData.length || imuData.length) {
+                const response = await fetch("http://localhost:5000/save-offline-data", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ heartRate: heartRateData, imu: imuData }),
+                });
+                if (response.ok) {
+                    console.log("✅ Offline data synced successfully!");
+                    const tx = db.transaction(["heartRate", "imuData"], "readwrite");
+                    await Promise.all([
+                        tx.objectStore("heartRate").clear(),
+                        tx.objectStore("imuData").clear(),
+                    ]);
+                    await tx.done; // Ensure transaction completes
+                } else {
+                    console.error("❌ Server rejected offline data:", response.status);
+                }
+            } else {
+                console.log("⚠️ No offline data found.");
+            }
+        } catch (error) {
+            console.error("❌ Error syncing offline data:", error);
+        }
+    };
+
+    const storeHeartRateOffline = async (event, device) => {
+        if (navigator.onLine) return; // ✅ Skip storing if online
+        try {
+            const db = await dbPromise;
+            const value = event.target.value.getUint8(1); // Extract BPM
+            const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+            const note = deviceNotes[device.name] || ""; // Fetch user note if available
+
+            await db.add("heartRate", { deviceName: device.name, timestamp, bpm: value, note });
+            console.log(`💾 Heart Rate Data Saved Offline: ${value} BPM, Note: ${note}`);
+        } catch (error) {
+            console.error("❌ Failed to store heart rate data:", error);
+        }
+    };
+
+    const storeIMUDataOffline = async (event, device) => {
+        if (navigator.onLine) return; // ✅ Skip storing if online
+        try {
+            const db = await dbPromise;
+            const value = event.target.value;
+            const accX = value.getFloat32(0, true);
+            const accY = value.getFloat32(4, true);
+            const accZ = value.getFloat32(8, true);
+            const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+            const note = deviceNotes[device.name] || "";
+            await db.add("imuData", { deviceName: device.name, timestamp, accX, accY, accZ, note });
+            console.log(`💾 IMU Data Saved Offline: X=${accX}, Y=${accY}, Z=${accZ}, Note: ${note}`);
+        } catch (error) {
+            console.error("❌ Failed to store IMU data:", error);
+        }
+    };
+
+
+    const dbPromise = openDB("sensorDataDB", 1, {
+        upgrade(db) {
+            if (!db.objectStoreNames.contains("heartRate")) {
+                db.createObjectStore("heartRate", { keyPath: "id", autoIncrement: true });
+            }
+            if (!db.objectStoreNames.contains("imuData")) {
+                db.createObjectStore("imuData", { keyPath: "id", autoIncrement: true });
+            }
+        },
+    });
+
     const parseHeartRate = (value) => {
         let data = new DataView(value.buffer);
         let flags = data.getUint8(0);
@@ -210,7 +297,6 @@ const PolarSensor = () => {
     const sendDataToBackend = (device_id, bpm, acc_x, acc_y, acc_z) => {
         const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
         const note = deviceNotes[device_id] || "";
-
         fetch("http://localhost:5000/save-sensor-data", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
