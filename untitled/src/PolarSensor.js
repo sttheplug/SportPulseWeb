@@ -32,6 +32,8 @@ const PolarSensor = () => {
     const [connecting, setConnecting] = useState(false);
     const [downloadReadyDevices, setDownloadReadyDevices] = useState({});
     const [deviceNotes, setDeviceNotes] = useState({});
+    const [samplingRates, setSamplingRates] = useState({});
+
 
 
     const connectToSensor = async () => {
@@ -78,16 +80,22 @@ const PolarSensor = () => {
                 console.error("❌ Device not found");
                 return;
             }
+
             const { heartRateCharacteristic, imuControlCharacteristic, imuDataCharacteristic } = deviceData;
+
             if (deviceData.heartRateHandler) {
                 heartRateCharacteristic.removeEventListener("characteristicvaluechanged", deviceData.heartRateHandler);
             }
             if (deviceData.imuDataHandler) {
                 imuDataCharacteristic.removeEventListener("characteristicvaluechanged", deviceData.imuDataHandler);
             }
+
             const heartRateHandler = (event) => handleHeartRate(event, device);
             const imuDataHandler = (event) => handleIMUData(event, device);
-            imuDataCharacteristic.addEventListener("characteristicvaluechanged", imuDataHandler);           heartRateCharacteristic.addEventListener("characteristicvaluechanged", heartRateHandler);
+
+            imuDataCharacteristic.addEventListener("characteristicvaluechanged", imuDataHandler);
+            heartRateCharacteristic.addEventListener("characteristicvaluechanged", heartRateHandler);
+
             setDevices((prevDevices) =>
                 prevDevices.map((d) =>
                     d.device === device
@@ -95,16 +103,25 @@ const PolarSensor = () => {
                         : d
                 )
             );
+
             await heartRateCharacteristic.startNotifications();
-            const startCommand = new Uint8Array([2, 2, 0, 1, 52, 0, 1, 1, 16, 0, 2, 1, 8, 0, 4, 1, 3]);
+
+            // Välj rätt samplingsfrekvens baserat på användarens val
+            const selectedFrequency = samplingRates[device.name] || 26;
+            const frequencyByte = selectedFrequency === 200 ? 2 : 1;
+
+            const startCommand = new Uint8Array([2, 2, 0, 1, 52, 0, 1, frequencyByte, 16, 0, 2, 1, 8, 0, 4, 1, 3]);
+
             await imuControlCharacteristic.writeValueWithResponse(startCommand);
-            console.log("📡 IMU Measurement Started!");
+            console.log(`📡 IMU Measurement Started at ${selectedFrequency} Hz!`);
+
             await imuDataCharacteristic.startNotifications();
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: true }));
         } catch (error) {
             console.error("❌ Error starting measurement:", error);
         }
     };
+
 
     const stopMeasurement = async (device) => {
         try {
@@ -210,8 +227,9 @@ const PolarSensor = () => {
     const sendDataToBackend = (device_id, bpm, acc_x, acc_y, acc_z) => {
         const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
         const note = deviceNotes[device_id] || "";
+        const sampling_rate = samplingRates[device_id] || 26; // Hämta vald frekvens
 
-        fetch("http://localhost:5000/save-sensor-data", {
+        fetch("http://localhost:5001/save-sensor-data", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -221,7 +239,8 @@ const PolarSensor = () => {
                 acc_x,
                 acc_y,
                 acc_z,
-                note
+                note,
+                sampling_rate
             }),
         })
             .then(response => response.json())
@@ -230,9 +249,10 @@ const PolarSensor = () => {
     };
 
 
+
     const downloadData = (device) => {
         const link = document.createElement("a");
-        link.href = `http://localhost:5000/download-data/${device.name}`;
+        link.href = `http://localhost:5001/download-data/${device.name}`;
         link.setAttribute("download", `sensor_data_${device.name}.csv`);
         document.body.appendChild(link);
         link.click();
@@ -279,6 +299,22 @@ const PolarSensor = () => {
                         ) : (
                             <p className="note-text">📝 Note: {deviceNotes[device.name]}</p>
                         )}
+
+                        {/* Dropdown för sampling frekvens */}
+                        <div className="sampling-container">
+                            <label className="sampling-label">📊 Sampling Frequency:</label>
+                            <select
+                                className="sampling-dropdown"
+                                value={samplingRates[device.name] || 26}
+                                onChange={(e) =>
+                                    setSamplingRates({ ...samplingRates, [device.name]: parseInt(e.target.value) })
+                                }
+                            >
+                                <option value={26}>26 Hz</option>
+                                <option value={200}>200 Hz</option>
+                            </select>
+                        </div>
+
                         <div className="data-container">
                             {/* Heart Rate Card */}
                             <div className="data-card heart-rate-card">
@@ -329,6 +365,7 @@ const PolarSensor = () => {
                             )}
                         </div>
                     </div>
+
                     {imuData[device.name] && imuData[device.name].x && imuData[device.name].y && imuData[device.name].z && (
                         <div className="chart-container">
                             <h3 className="chart-title">IMU Data Monitor</h3>
@@ -396,7 +433,6 @@ const PolarSensor = () => {
 
                 </div>
             ))}
-
         </div>
     );
 };
