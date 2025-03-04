@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, {useEffect, useState} from "react";
 import "./PolarSensor.css";
 import {Bar, Line} from "react-chartjs-2";
 import { Download } from "lucide-react";
@@ -13,6 +13,7 @@ import {
     Tooltip,
     Legend
 } from "chart.js";
+import device from "mysql/lib/protocol/packets/Field";
 
 ChartJS.register(
     CategoryScale,
@@ -34,55 +35,139 @@ const PolarSensor = () => {
     const [deviceNotes, setDeviceNotes] = useState({});
     const [samplingRates, setSamplingRates] = useState({});
 
-
+    //  Automatically fetch offline data when a device is added to state
+    useEffect(() => {
+        if (devices.length > 0) {
+            const latestDevice = devices[devices.length - 1].device;
+            console.log(` Checking for offline data on ${latestDevice.name}...`);
+            fetchOfflineData(latestDevice);
+        }
+    }, [devices]); // Runs every time `devices` state changes
 
     const connectToSensor = async () => {
         try {
             setConnecting(true);
-            console.log("🔄 Requesting Bluetooth Device...");
+            console.log(" Requesting Bluetooth Device...");
 
             const device = await navigator.bluetooth.requestDevice({
                 filters: [{ namePrefix: "Polar" }],
                 optionalServices: ["heart_rate", "fb005c80-02e7-f387-1cad-8acd2d8df0c8"]
             });
 
-            console.log(`🔗 Connected to ${device.name}`);
+            console.log(` Connected to ${device.name}`);
             const server = await device.gatt.connect();
 
-            // 🫀 Heart Rate Service
+            //  Get Heart Rate Service
             const heartRateService = await server.getPrimaryService("heart_rate");
-            console.log(`✅ Found Heart Rate Service`);
             const heartRateCharacteristic = await heartRateService.getCharacteristic("00002a37-0000-1000-8000-00805f9b34fb");
+
+            //  Get IMU Service
             const imuService = await server.getPrimaryService("fb005c80-02e7-f387-1cad-8acd2d8df0c8");
-            console.log(`✅ Found IMU Service`);
             const imuControlCharacteristic = await imuService.getCharacteristic("fb005c81-02e7-f387-1cad-8acd2d8df0c8");
-            console.log(`✅ Found IMU Control Characteristic`);
             const imuDataCharacteristic = await imuService.getCharacteristic("fb005c82-02e7-f387-1cad-8acd2d8df0c8");
-            console.log(`✅ Found IMU Data Characteristic`);
-            setDevices((prevDevices) => [
-                ...prevDevices.filter(({ device: d }) => d.id !== device.id),
-                { device, heartRateCharacteristic, imuDataCharacteristic, imuControlCharacteristic }
-            ]);
+
+            console.log(` Characteristics retrieved successfully for ${device.name}`);
+
+            //  Update state
+            setDevices((prevDevices) => {
+                const updatedDevices = [
+                    ...prevDevices.filter(({ device: d }) => d.id !== device.id),
+                    { device, heartRateCharacteristic, imuDataCharacteristic, imuControlCharacteristic }
+                ];
+                console.log(" Device added to state:", updatedDevices);
+                return updatedDevices;
+            });
+
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: false }));
+
         } catch (error) {
-            console.error("❌ Connection failed:", error);
+            console.error(" Connection failed:", error);
         } finally {
             setConnecting(false);
         }
     };
 
+    // ✅ Define IMU Data Handler BEFORE calling addEventListener
+    const handleIMUOfflineData = async (event) => {
+        let value = event.target.value;
+        if (!value || value.byteLength < 16) {
+            console.error(" IMU Data is too short, might be incorrect format!");
+            return;
+        }
+
+        let data = new DataView(value.buffer);
+        let timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+        let acc_x = data.getInt16(10, true) * 0.0024 * 9.80665;
+        let acc_y = data.getInt16(12, true) * 0.0024 * 9.80665;
+        let acc_z = data.getInt16(14, true) * 0.0024 * 9.80665;
+
+        console.log(` Retrieved stored IMU Data: X:${acc_x}, Y:${acc_y}, Z:${acc_z}`);
+
+        // Send to backend
+        await sendDataToBackend(device.name, null, acc_x, acc_y, acc_z, timestamp);
+    };
+
+    // Define BPM Data Handler BEFORE calling addEventListener
+    const handleBPMOfflineData = async (event) => {
+        let value = event.target.value;
+        let bpm = parseHeartRate(value);
+        let timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+        console.log(`Retrieved stored BPM: ${bpm} BPM`);
+
+        // ✅ Send to backend
+        await sendDataToBackend(device.name, bpm, null, null, null, timestamp);
+    };
+
+    const fetchOfflineData = async (device) => {
+        try {
+            console.log(` Fetching offline data from ${device.name}`);
+            const deviceData = devices.find(({ device: d }) => d === device);
+            if (!deviceData) return console.error(" Device not found");
+
+            const { imuControlCharacteristic, heartRateCharacteristic } = deviceData;
+
+            // 🛠 Command to retrieve stored data
+            const retrieveCommand = new Uint8Array([4]);
+            await imuControlCharacteristic.writeValueWithResponse(retrieveCommand);
+
+            console.log(`📡 Offline data retrieval initiated. Waiting for stored IMU & BPM data...`);
+
+            // Remove existing listeners before adding new ones to prevent duplication
+            imuControlCharacteristic.removeEventListener("characteristicvaluechanged", handleIMUOfflineData);
+            heartRateCharacteristic.removeEventListener("characteristicvaluechanged", handleBPMOfflineData);
+
+            imuControlCharacteristic.addEventListener("characteristicvaluechanged", handleIMUOfflineData);
+            await imuControlCharacteristic.startNotifications();
+
+            heartRateCharacteristic.addEventListener("characteristicvaluechanged", handleBPMOfflineData);
+            await heartRateCharacteristic.startNotifications();
+
+        } catch (error) {
+            console.error(" Error fetching offline data:", error);
+        }
+    };
 
     const startMeasurement = async (device) => {
         try {
-            console.log(`🚀 Starting measurement for ${device.name}`);
+            console.log(` Starting measurement for ${device.name}`);
+
+            // 🛠 Ensure the device exists in state
             const deviceData = devices.find(({ device: d }) => d === device);
             if (!deviceData) {
-                console.error("❌ Device not found");
+                console.error(" Device not found in state!");
                 return;
             }
 
+            // 🛠 Validate characteristics exist
             const { heartRateCharacteristic, imuControlCharacteristic, imuDataCharacteristic } = deviceData;
+            if (!heartRateCharacteristic || !imuDataCharacteristic) {
+                console.error(" Device characteristics are undefined! Reconnecting might help.");
+                return;
+            }
 
+            // 🛠 Remove previous event listeners to prevent duplication
             if (deviceData.heartRateHandler) {
                 heartRateCharacteristic.removeEventListener("characteristicvaluechanged", deviceData.heartRateHandler);
             }
@@ -90,26 +175,26 @@ const PolarSensor = () => {
                 imuDataCharacteristic.removeEventListener("characteristicvaluechanged", deviceData.imuDataHandler);
             }
 
+            //  Attach new event listeners
             const heartRateHandler = (event) => handleHeartRate(event, device);
             const imuDataHandler = (event) => handleIMUData(event, device);
 
             imuDataCharacteristic.addEventListener("characteristicvaluechanged", imuDataHandler);
             heartRateCharacteristic.addEventListener("characteristicvaluechanged", heartRateHandler);
 
+            // 🛠 Update state to store new handlers
             setDevices((prevDevices) =>
                 prevDevices.map((d) =>
-                    d.device === device
-                        ? { ...d, heartRateHandler, imuDataHandler }
-                        : d
+                    d.device === device ? { ...d, heartRateHandler, imuDataHandler } : d
                 )
             );
 
+            //  Start notifications
             await heartRateCharacteristic.startNotifications();
 
-            // Välj rätt samplingsfrekvens baserat på användarens val
+            //  Configure IMU Sampling
             const selectedFrequency = samplingRates[device.name] || 26;
             const frequencyByte = selectedFrequency === 200 ? 2 : 1;
-
             const startCommand = new Uint8Array([2, 2, 0, 1, 52, 0, 1, frequencyByte, 16, 0, 2, 1, 8, 0, 4, 1, 3]);
 
             await imuControlCharacteristic.writeValueWithResponse(startCommand);
@@ -117,18 +202,18 @@ const PolarSensor = () => {
 
             await imuDataCharacteristic.startNotifications();
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: true }));
+
         } catch (error) {
-            console.error("❌ Error starting measurement:", error);
+            console.error(" Error starting measurement:", error);
         }
     };
 
-
     const stopMeasurement = async (device) => {
         try {
-            console.log(`🛑 Stopping measurement for ${device.name}`);
+            console.log(` Stopping measurement for ${device.name}`);
             const deviceData = devices.find(({ device: d }) => d === device);
             if (!deviceData) {
-                console.error("❌ Device not found");
+                console.error(" Device not found");
                 return;
             }
 
@@ -144,17 +229,14 @@ const PolarSensor = () => {
             );
             setMeasuringDevices((prev) => ({ ...prev, [device.name]: false }));
 
-            // ✅ Markera enheten som redo för nedladdning
+            // ✅Markera enheten som redo för nedladdning
             setDownloadReadyDevices((prev) => ({ ...prev, [device.name]: true }));
 
-            console.log(`✅ Measurement stopped for ${device.name}`);
+            console.log(` Measurement stopped for ${device.name}`);
         } catch (error) {
-            console.error("❌ Error stopping measurement:", error);
+            console.error(" Error stopping measurement:", error);
         }
     };
-
-
-
 
     const disconnectSensor = async (deviceToRemove) => {
         const updatedDevices = devices.filter(({ device }) => device !== deviceToRemove);
@@ -194,7 +276,7 @@ const PolarSensor = () => {
         console.log(`📡 IMU Data Event Triggered for ${device.name}`);
         let value = event.target.value;
         if (!value || value.byteLength < 16) {
-            console.error("❌ IMU Data is too short, might be incorrect format!");
+            console.error(" IMU Data is too short, might be incorrect format!");
             return;
         }
         let data = new DataView(value.buffer);
@@ -214,7 +296,7 @@ const PolarSensor = () => {
             }));
             sendDataToBackend(device.name, null, x, y, z);
         } catch (error) {
-            console.error("❌ IMU Data Processing Failed:", error);
+            console.error(" IMU Data Processing Failed:", error);
         }
     };
     
@@ -229,7 +311,7 @@ const PolarSensor = () => {
         const note = deviceNotes[device_id] || "";
         const sampling_rate = samplingRates[device_id] || 26; // Hämta vald frekvens
 
-        fetch("http://localhost:5001/save-sensor-data", {
+        fetch("http://localhost:5000/save-sensor-data", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -245,21 +327,17 @@ const PolarSensor = () => {
         })
             .then(response => response.json())
             .then(data => console.log(`✅ Data saved for ${device_id}:`, data))
-            .catch(error => console.error("❌ Error saving data:", error));
+            .catch(error => console.error(" Error saving data:", error));
     };
-
-
 
     const downloadData = (device) => {
         const link = document.createElement("a");
-        link.href = `http://localhost:5001/download-data/${device.name}`;
+        link.href = `http://localhost:5000/download-data/${device.name}`;
         link.setAttribute("download", `sensor_data_${device.name}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
-
-
 
     return (
         <div className="container">
