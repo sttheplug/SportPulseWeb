@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import "./PolarSensor.css";
 import {Bar, Line} from "react-chartjs-2";
-import { Download } from "lucide-react";
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -243,65 +242,47 @@ const PolarSensor = () => {
 
     return (
         <div className="container">
-            {/* Connect button stays outside button-group */}
-            {devices.length === 0 ? (
-                <button className="cbutton" onClick={connectToSensor} disabled={connecting}>
-                    {connecting ? "Connecting..." : "Connect to Polar Sensor"}
-                </button>
-            ) : (
-                <>
-                    {/* Button group contains both buttons */}
-                    <div className="button-group">
-                        <button className="disconnect-btn" onClick={() => devices.forEach(({ device }) => disconnectSensor(device))}>
+            <div className="button-group">
+                {devices.length === 0 ? (
+                    <button className="connect-btn" onClick={connectToSensor} disabled={connecting}>
+                        {connecting ? "Connecting..." : "Connect to Polar Sensor"}
+                    </button>
+                ) : (
+                    <>
+                        <button className="connect-btn" onClick={() => devices.forEach(({ device }) => disconnectSensor(device))}>
                             Disconnect from Sensors
                         </button>
                         <button className="add-device-btn" onClick={connectToSensor} disabled={connecting}>
                             {connecting ? "Connecting..." : "Add a Device"}
                         </button>
-                    </div>
-                </>
-            )}
+                    </>
+                )}
+            </div>
+
             {devices.map(({ device }) => (
                 <div key={device.id} className="sensor-card-container">
                     <div className="sensor-card">
                         <h3>{device.name}</h3>
-                        {!measuringDevices[device.name] ? (
-                            <div className="note-container">
-                                <label className="note-label">📝 Note:</label>
-                                <input
-                                    type="text"
-                                    className="note-input"
-                                    value={deviceNotes[device.name] || ""}
-                                    onChange={(e) => setDeviceNotes({ ...deviceNotes, [device.name]: e.target.value })}
-                                    placeholder="Enter a note..."
-                                />
+                        <div>
+                            <label><strong>Notering:</strong></label>
+                            <input
+                                type="text"
+                                value={deviceNotes[device.name] || ""}
+                                onChange={(e) => setDeviceNotes({ ...deviceNotes, [device.name]: e.target.value })}
+                                placeholder="Ange notering"
+                            />
+                        </div>
+                        <p><strong>Heart Rate:</strong> {heartRateData[device.name]?.slice(-1)[0] || "No Data"} BPM</p>
+                        {imuData[device.name] ? (
+                            <div className="imu-container">
+                                <h4>Accelerometer Data (IMU)</h4>
+                                <p><strong>X:</strong> {imuData[device.name].x.toFixed(2)} m/s²</p>
+                                <p><strong>Y:</strong> {imuData[device.name].y.toFixed(2)} m/s²</p>
+                                <p><strong>Z:</strong> {imuData[device.name].z.toFixed(2)} m/s²</p>
                             </div>
                         ) : (
-                            <p className="note-text">📝 Note: {deviceNotes[device.name]}</p>
+                            <p><strong>Accelerometer Data:</strong> No Data</p>
                         )}
-                        <div className="data-container">
-                            {/* Heart Rate Card */}
-                            <div className="data-card heart-rate-card">
-                                <h4>💓 Heart Rate</h4>
-                                <p className="heart-rate-value">
-                                    {heartRateData[device.name]?.slice(-1)[0] || "No Data"} BPM
-                                </p>
-                            </div>
-
-                            {/* IMU Data Card */}
-                            <div className="data-card imu-card">
-                                <h4>📡 Accelerometer Data (IMU)</h4>
-                                {imuData[device.name] ? (
-                                    <div className="imu-values">
-                                        <p><strong>X:</strong> <span className="imu-value">{imuData[device.name].x.toFixed(2)}</span> m/s²</p>
-                                        <p><strong>Y:</strong> <span className="imu-value">{imuData[device.name].y.toFixed(2)}</span> m/s²</p>
-                                        <p><strong>Z:</strong> <span className="imu-value">{imuData[device.name].z.toFixed(2)}</span> m/s²</p>
-                                    </div>
-                                ) : (
-                                    <p className="no-data">No Data</p>
-                                )}
-                            </div>
-                        </div>
                         <div className="button-group">
                             <button className="action-btn" onClick={() => disconnectSensor(device)}>Disconnect</button>
                             {!measuringDevices[device.name] ? (
@@ -314,18 +295,9 @@ const PolarSensor = () => {
                                 </button>
                             )}
                             {downloadReadyDevices[device.name] && (
-                                <div className="download-container">
-                                    <a
-                                        href="#"
-                                        className="download-link"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            downloadData(device);
-                                        }}
-                                    >
-                                        Download Data <Download size={16} className="download-icon" />
-                                    </a>
-                                </div>
+                                <button className="action-btn" onClick={() => downloadData(device)}>
+                                    Ladda ner Data
+                                </button>
                             )}
                         </div>
                     </div>
