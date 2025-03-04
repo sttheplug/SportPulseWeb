@@ -29,7 +29,7 @@ db.connect((err) => {
 
 // 🔹 Save sensor data (BPM & IMU separately)
 app.post("/save-sensor-data", async (req, res) => {
-    const { timestamp, device_id, bpm, acc_x, acc_y, acc_z, note, sampling_rate } = req.body;
+    const { timestamp, device_id, bpm, acc_x, acc_y, acc_z, note } = req.body;
 
     if (!timestamp || !device_id) {
         return res.status(400).json({ error: "❌ Timestamp and Device ID are required!" });
@@ -43,9 +43,9 @@ app.post("/save-sensor-data", async (req, res) => {
         }
 
         if (acc_x != null && acc_y != null && acc_z != null) {
-            const imuQuery = `INSERT INTO imu_data (timestamp, device_id, acc_x, acc_y, acc_z, note, sampling_rate) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-            await db.promise().query(imuQuery, [timestamp, device_id, acc_x, acc_y, acc_z, note, sampling_rate || 26]);
-            console.log(`✅ IMU Data Inserted: ${device_id} - X: ${acc_x}, Y: ${acc_y}, Z: ${acc_z} - Note: ${note} - Sampling Rate: ${sampling_rate}`);
+            const imuQuery = `INSERT INTO imu_data (timestamp, device_id, acc_x, acc_y, acc_z, note) VALUES (?, ?, ?, ?, ?, ?)`;
+            await db.promise().query(imuQuery, [timestamp, device_id, acc_x, acc_y, acc_z, note]);
+            console.log(`✅ IMU Data Inserted: ${device_id} - X: ${acc_x}, Y: ${acc_y}, Z: ${acc_z} - Note: ${note}`);
         }
 
         res.status(200).json({ message: "Data saved successfully!" });
@@ -54,7 +54,6 @@ app.post("/save-sensor-data", async (req, res) => {
         res.status(500).json({ error: "Database insert failed!" });
     }
 });
-
 
 
 // Installera json2csv: npm install json2csv
@@ -69,7 +68,7 @@ app.get("/download-data/:device_id", async (req, res) => {
         );
 
         const [imuData] = await db.promise().query(
-            "SELECT timestamp, device_id, acc_x, acc_y, acc_z, sampling_rate, note FROM imu_data WHERE device_id = ? ORDER BY timestamp ASC",
+            "SELECT timestamp, device_id, acc_x, acc_y, acc_z, note FROM imu_data WHERE device_id = ? ORDER BY timestamp ASC",
             [device_id]
         );
 
@@ -77,7 +76,7 @@ app.get("/download-data/:device_id", async (req, res) => {
             return res.status(404).json({ error: "Ingen data hittades för enheten." });
         }
 
-        const bpmOptions = {
+        const options = {
             fields: ["timestamp", "device_id", "bpm", "note"],
             delimiter: ";",
             header: true,
@@ -85,22 +84,22 @@ app.get("/download-data/:device_id", async (req, res) => {
         };
 
         const imuOptions = {
-            fields: ["timestamp", "device_id", "acc_x", "acc_y", "acc_z", "sampling_rate", "note"],
+            fields: ["timestamp", "device_id", "acc_x", "acc_y", "acc_z", "note"],
             delimiter: ";",
             header: true,
             quote: ""
         };
 
         // 🎵 BPM-tabell
-        const bpmParser = new Parser(bpmOptions);
+        const bpmParser = new Parser(options);
         const bpmCsv = bpmParser.parse(sensorData);
 
-        // 📈 IMU-tabell (nu inkluderar vi `sampling_rate`)
+        // 📈 IMU-tabell
         const imuParser = new Parser(imuOptions);
         const imuCsv = imuParser.parse(imuData);
 
         // 📝 Kombinera CSV med tydliga sektioner
-        const combinedCsv = `BPM Data:\n${bpmCsv}\n\nIMU Data (inkl. Sampling Rate):\n${imuCsv}`;
+        const combinedCsv = `BPM Data:\n${bpmCsv}\n\nIMU Data:\n${imuCsv}`;
 
         const filePath = path.join(__dirname, `sensor_data_${device_id}.csv`);
         fs.writeFileSync(filePath, combinedCsv);
@@ -118,7 +117,6 @@ app.get("/download-data/:device_id", async (req, res) => {
         res.status(500).json({ error: "Fel vid generering av fil." });
     }
 });
-
 
 
 
