@@ -55,39 +55,6 @@ app.post("/save-sensor-data", async (req, res) => {
     }
 });
 
-app.use(express.json()); // ✅ Ensure JSON body parsing is enabled
-
-app.post("/save-offline-data", async (req, res) => {
-    try {
-        console.log("🔄 Received Offline Data:", req.body);
-        const { heartRate, imu } = req.body;
-        if ((!heartRate || heartRate.length === 0) && (!imu || imu.length === 0)) {
-            return res.status(400).json({ error: "❌ No data received" });
-        }
-        if (heartRate && heartRate.length > 0) {
-            const heartRateQuery = `INSERT INTO sensor_data (timestamp, device_id, bpm, note) VALUES ?`;
-            const heartRateValues = heartRate.map(({ timestamp, deviceName, bpm, note }) =>
-                [timestamp, deviceName, bpm, note || ""]);
-            await db.promise().query(heartRateQuery, [heartRateValues]);
-            console.log(`✅ Inserted ${heartRate.length} heart rate records`);
-        }
-        if (imu && imu.length > 0) {
-            const imuQuery = `INSERT INTO imu_data (timestamp, device_id, acc_x, acc_y, acc_z, note) VALUES ?`;
-            const imuValues = imu.map(({ timestamp, deviceName, accX, accY, accZ, note }) =>
-                [timestamp, deviceName, accX, accY, accZ, note || ""]);
-            await db.promise().query(imuQuery, [imuValues]);
-            console.log(`✅ Inserted ${imu.length} IMU records`);
-        }
-
-        res.status(200).json({ message: "✅ Offline data synced successfully" });
-
-    } catch (error) {
-        console.error("❌ Database Insert Error:", error);
-        res.status(500).json({ error: "Database insert failed" });
-    }
-});
-
-
 
 // Installera json2csv: npm install json2csv
 
