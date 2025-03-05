@@ -1,12 +1,20 @@
 import React from "react";
-import PolarSensor from "./PolarSensor"; // Import the component
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import PolarSensor from "./PolarSensor";
+import DataList from "./DataList"; // Import DataList component
+
 function App() {
-  return (
-      <div className="App">
-          <h1 className="app-title">Sport Pulse Web</h1>
-          <PolarSensor /> {/* Display the Polar Sensor component */}
-      </div>
-  );
+    return (
+        <Router>
+            <div className="App">
+                <h1 className="app-title">Sport Pulse Web</h1>
+                <Routes>
+                    <Route path="/" element={<PolarSensor />} />
+                    <Route path="/data/:deviceId" element={<DataList />} />
+                </Routes>
+            </div>
+        </Router>
+    );
 }
 
 export default App;

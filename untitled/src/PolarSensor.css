@@ -76,7 +76,7 @@ button:hover {
     justify-content: center;
     align-items: center;
     width: 100%;
-    padding: 15px;
+    padding: 5px;
 }
 
 /* 📊 Sensor Card */
@@ -101,7 +101,7 @@ button:hover {
     text-align: center;
     box-shadow: 0 4px 15px rgba(0, 255, 255, 0.5);
     transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-    height: 335px; /* Increased height to match the card */
+    height: 300px; /* Increased height to match the card */
     display: flex;
     flex-direction: column; /* Ensure title and chart stack vertically */
     justify-content: flex-start; /* Align title to the top */
@@ -132,6 +132,10 @@ button:hover {
     left: 50%; /* Centers the link horizontally */
     transform: translateX(-50%); /* Ensures perfect centering */
     text-align: center; /* Ensures the link is centered */
+    display: flex;  /* Align items in a row */
+    align-items: center; /* Align links vertically */
+    gap: 10px;
+    justify-content: center; /* Center them horizontally */
 }
 
 /* Style for the download link */
@@ -141,7 +145,7 @@ button:hover {
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    padding: 10px 20px; /* Adds padding only to the link, not affecting the buttons */
+    padding: 10px 30px; /* Adds padding only to the link, not affecting the buttons */
     white-space: nowrap; /* Prevents the text from breaking into a new line */
 }
 
@@ -160,7 +164,7 @@ button:hover {
 .note-container {
     text-align: left; /* Aligns label properly */
     margin-right: 15px; /* Adds some space between text and icon */
-
+    margin-bottom: 10px;
 }
 
 .note-label {
@@ -259,5 +263,57 @@ button:hover {
     color: rgba(255, 255, 255, 0.6);
     font-style: italic;
 }
+
+/* 📊 Sampling Frequency Dropdown */
+.sampling-container {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Reduced gap for a more compact layout */
+    background: rgba(0, 0, 0, 0.7);
+    padding: 8px; /* Slightly reduced padding */
+    border-radius: 6px; /* Smaller rounded edges */
+    box-shadow: 0 3px 12px rgba(0, 255, 255, 0.5);
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.sampling-label {
+    font-size: 14px; /* Reduced font size */
+    font-weight: bold;
+    color: rgba(0, 255, 255, 0.8);
+}
+
+.sampling-dropdown {
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: 1px solid rgba(0, 255, 255, 0.5);
+    padding: 6px 8px; /* Smaller padding */
+    font-size: 12px; /* Reduced font size */
+    border-radius: 6px;
+    outline: none;
+    transition: 0.3s ease-in-out;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
+    min-width: 90px; /* Ensures it doesn’t get too small */
+}
+
+.sampling-dropdown:hover {
+    border-color: rgba(0, 255, 255, 1);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+}
+
+.sampling-dropdown:focus {
+    border-color: rgba(0, 255, 255, 1);
+    box-shadow: 0 0 12px rgba(0, 255, 255, 1);
+}
+
+.sampling-dropdown option {
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 6px;
+}
+
+
+
+
 
 

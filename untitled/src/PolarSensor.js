@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import "./PolarSensor.css";
+import { useNavigate } from "react-router-dom";
 import {Bar, Line} from "react-chartjs-2";
 import { Download } from "lucide-react";
 import {
@@ -33,9 +34,7 @@ const PolarSensor = () => {
     const [downloadReadyDevices, setDownloadReadyDevices] = useState({});
     const [deviceNotes, setDeviceNotes] = useState({});
     const [samplingRates, setSamplingRates] = useState({});
-
-
-
+    const navigate = useNavigate();
     const connectToSensor = async () => {
         try {
             setConnecting(true);
@@ -229,7 +228,7 @@ const PolarSensor = () => {
         const note = deviceNotes[device_id] || "";
         const sampling_rate = samplingRates[device_id] || 26; // Hämta vald frekvens
 
-        fetch("http://localhost:5001/save-sensor-data", {
+        fetch("http://localhost:5000/save-sensor-data", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -252,7 +251,7 @@ const PolarSensor = () => {
 
     const downloadData = (device) => {
         const link = document.createElement("a");
-        link.href = `http://localhost:5001/download-data/${device.name}`;
+        link.href = `http://localhost:5000/download-data/${device.name}`;
         link.setAttribute("download", `sensor_data_${device.name}.csv`);
         document.body.appendChild(link);
         link.click();
@@ -349,8 +348,16 @@ const PolarSensor = () => {
                                     Stop Measurement
                                 </button>
                             )}
-                            {downloadReadyDevices[device.name] && (
-                                <div className="download-container">
+                            <div className="download-container">
+                                {/* Always visible Find Data Link */}
+                                <a
+                                    href={`/data/${device.name}`}
+                                    className="download-link"
+                                >
+                                    Find Data
+                                </a>
+                                {/* Conditional Download Data Link */}
+                                {downloadReadyDevices[device.name] && (
                                     <a
                                         href="#"
                                         className="download-link"
@@ -359,10 +366,10 @@ const PolarSensor = () => {
                                             downloadData(device);
                                         }}
                                     >
-                                        Download Data <Download size={16} className="download-icon" />
+                                        Download All Data <Download size={16} className="download-icon" />
                                     </a>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
 

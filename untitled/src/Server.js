@@ -14,7 +14,7 @@ app.use(express.json());
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",
-    password: "4321Moses",
+    password: "Aprilapril23.",
     database: "sensor_data",
 });
 
@@ -107,6 +107,86 @@ app.get("/download-data/:device_id", async (req, res) => {
         res.status(500).json({ error: "Fel vid generering av fil." });
     }
 });
+app.get("/download-selected-data/:device_id", async (req, res) => {
+    const { device_id } = req.params;
+    const sensorIds = req.query.sensorIds ? req.query.sensorIds.split(",") : [];
+    const imuIds = req.query.imuIds ? req.query.imuIds.split(",") : [];
+
+    if (!sensorIds.length && !imuIds.length) {
+        return res.status(400).json({ error: "No data selected" });
+    }
+
+    try {
+        let sensorData = [];
+        let imuData = [];
+
+        // Format the timestamps to be compatible with MySQL and add 1 hour
+        const formatTimestamp = (timestamp) => {
+            const date = new Date(timestamp);
+            date.setHours(date.getHours() + 1);  // Add 1 hour to the timestamp
+            return date.toISOString().slice(0, 19).replace('T', ' ');  // Format: YYYY-MM-DD HH:MM:SS
+        };
+
+        const sensorIdParams = sensorIds.map(id => formatTimestamp(id));
+        const imuIdParams = imuIds.map(id => formatTimestamp(id));
+
+        console.log("Sensor query parameters:", sensorIdParams);
+        console.log("IMU query parameters:", imuIdParams);
+
+        // Retrieve sensor data if sensorIds are provided
+        if (sensorIdParams.length > 0) {
+            const sensorQuery = `
+                SELECT timestamp, device_id, bpm, note
+                FROM sensor_data
+                WHERE timestamp IN (?);
+            `;
+            [sensorData] = await db.promise().query(sensorQuery, [sensorIdParams]);
+        }
+
+        // Retrieve imu data if imuIds are provided
+        if (imuIdParams.length > 0) {
+            const imuQuery = `
+                SELECT timestamp, device_id, acc_x, acc_y, acc_z, note, sampling_rate
+                FROM imu_data
+                WHERE timestamp IN (?);
+            `;
+            [imuData] = await db.promise().query(imuQuery, [imuIdParams]);
+        }
+
+        console.log("Sensor Data Retrieved:", sensorData);
+        console.log("IMU Data Retrieved:", imuData);
+
+        // CSV parsing logic
+        const sensorParser = new Parser({
+            fields: ["timestamp", "device_id", "bpm", "note"],
+            delimiter: ";",
+            header: true
+        });
+
+        const imuParser = new Parser({
+            fields: ["timestamp", "device_id", "acc_x", "acc_y", "acc_z", "note", "sampling_rate"],
+            delimiter: ";",
+            header: true
+        });
+
+        const bpmCsv = sensorData.length > 0 ? sensorParser.parse(sensorData) : "No BPM data available";
+        const imuCsv = imuData.length > 0 ? imuParser.parse(imuData) : "No IMU data available";
+
+        const combinedCsv = `BPM Data:\n${bpmCsv}\n\nIMU Data:\n${imuCsv}`;
+        res.setHeader("Content-Disposition", `attachment; filename=selected_data_${device_id}.csv`);
+        res.setHeader("Content-Type", "text/csv");
+        res.send(combinedCsv);
+
+    } catch (error) {
+        console.error("❌ Error generating CSV:", error);
+        res.status(500).json({ error: "Error generating file." });
+    }
+});
+
+
+
+
+
 
 
 
@@ -121,6 +201,7 @@ app.get("/get-sensor-data/:device_id", (req, res) => {
                 console.error("❌ Failed to fetch data:", err);
                 return res.status(500).json({ error: "Database error" });
             }
+            console.log("✅ Sensor Data Fetched:", results); // Debugging
             res.json(results);
         });
 });
@@ -134,10 +215,11 @@ app.get("/get-imu-data/:device_id", (req, res) => {
                 console.error("❌ Failed to fetch IMU data:", err);
                 return res.status(500).json({ error: "Database error" });
             }
+            console.log("✅ Imu Data Fetched:", results); // Debugging
             res.json(results);
         });
 });
 
-app.listen(5001, () => {
+app.listen(5000, () => {
     console.log("🚀 Server running on port 5000");
 });

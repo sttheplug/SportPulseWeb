@@ -1,0 +1,106 @@
+body {
+    background: url('background.jpg') no-repeat center center fixed;
+    background-size: cover;
+    font-family: Arial, sans-serif;
+    color: white;
+    text-align: center;
+}
+
+.container2 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 20px;
+    backdrop-filter: blur(2px);
+    min-height: 100vh;
+    overflow-y: auto;
+}
+
+h2 {
+    font-size: 2rem;
+    text-shadow: 2px 2px 5px rgba(0, 255, 255, 0.8);
+}
+
+h3 {
+    font-size: 1.5rem;
+    margin-top: 10px;
+    text-shadow: 1px 1px 5px rgba(0, 255, 255, 0.8);
+}
+
+.data-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 1000px;
+    margin-bottom: 20px;
+}
+
+.data-card1 {
+    background: rgba(0, 0, 0, 0.7); /* Darker, semi-transparent background */
+    backdrop-filter: blur(10px); /* Adds a blur effect */
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 255, 255, 0.5); /* Cyan glow effect */
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.data-card1:hover {
+    box-shadow: 0 4px 20px rgba(0, 255, 255, 0.8); /* Increased glow on hover */
+    transform: scale(1.05);
+}
+
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.custom-checkbox {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #00eaff;
+    display: inline-block;
+    margin-right: 10px;
+}
+
+input[type="checkbox"] {
+    display: none;
+}
+
+input[type="checkbox"]:checked + .custom-checkbox {
+    background: #00eaff;
+    border: 2px solid white;
+}
+
+.data-content {
+    font-size: 0.95rem;
+}
+
+.download-button {
+    background: #00eaff;
+    color: black;
+    padding: 12px 20px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+    margin-top: 20px;
+}
+
+.download-button:hover {
+    background: #00c8e0;
+}
+
+.download-button:disabled {
+    background: rgb(128, 128, 128);
+    cursor: not-allowed;
+}
