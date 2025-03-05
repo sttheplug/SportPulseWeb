@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { Download } from "lucide-react";
 import "./DataList.css";
 
 const DataList = () => {
@@ -70,55 +71,63 @@ const DataList = () => {
     return (
         <div className="container2">
             <h2>Heart Rate & IMU Data</h2>
-            <div className="data-grid">
-                <h3>Heart Rate Data</h3>
-                {sensorData.map((item) => (
-                    <div key={item.timestamp} className="data-card1">
-                        <label className="checkbox-container">
-                            <input
-                                type="checkbox"
-                                checked={selectedSensorIds.has(item.timestamp)}
-                                onChange={() => toggleSensorSelection(item.timestamp)}
-                            />
-                            <span className="custom-checkbox"></span>
-                        </label>
-                        <div className="data-content">
-                            <p><strong>Timestamp:</strong> {new Date(item.timestamp).toLocaleString()}</p>
-                            <p><strong>BPM:</strong> {item.bpm}</p>
-                            <p><strong>Note:</strong> {item.note}</p>
-                        </div>
-                    </div>
-                ))}
 
-                <h3>IMU Data</h3>
-                {imuData.map((item) => (
-                    <div key={item.timestamp} className="data-card1">
-                        <label className="checkbox-container">
-                            <input
-                                type="checkbox"
-                                checked={selectedImuIds.has(item.timestamp)}
-                                onChange={() => toggleImuSelection(item.timestamp)}
-                            />
-                            <span className="custom-checkbox"></span>
-                        </label>
-                        <div className="data-content">
-                            <p><strong>Timestamp:</strong> {new Date(item.timestamp).toLocaleString()}</p>
-                            <p><strong>Acc X:</strong> {item.acc_x}</p>
-                            <p><strong>Acc Y:</strong> {item.acc_y}</p>
-                            <p><strong>Acc Z:</strong> {item.acc_z}</p>
-                            <p><strong>Sampling Rate:</strong> {item.sampling_rate} Hz</p>
-                            <p><strong>Note:</strong> {item.note}</p>
+            <div className="data-section">
+                <h3>Heart Rate Data</h3>
+                <div className="data-grid">
+                    {sensorData.map((item) => (
+                        <div key={item.timestamp} className="data-card1">
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedSensorIds.has(item.timestamp)}
+                                    onChange={() => toggleSensorSelection(item.timestamp)}
+                                />
+                                <span className="custom-checkbox"></span>
+                            </label>
+                            <div className="data-content">
+                                <p><strong>Timestamp:</strong> {new Date(item.timestamp).toLocaleString()}</p>
+                                <p><strong>BPM:</strong> {item.bpm}</p>
+                                <p><strong>Note:</strong> {item.note}</p>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
-            <button
-                className="download-button"
+
+            <div className="data-section">
+                <h3>IMU Data</h3>
+                <div className="data-grid">
+                    {imuData.map((item) => (
+                        <div key={item.timestamp} className="data-card1">
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedImuIds.has(item.timestamp)}
+                                    onChange={() => toggleImuSelection(item.timestamp)}
+                                />
+                                <span className="custom-checkbox"></span>
+                            </label>
+                            <div className="data-content">
+                                <p><strong>Timestamp:</strong> {new Date(item.timestamp).toLocaleString()}</p>
+                                <p><strong>Acc X:</strong> {item.acc_x}</p>
+                                <p><strong>Acc Y:</strong> {item.acc_y}</p>
+                                <p><strong>Acc Z:</strong> {item.acc_z}</p>
+                                <p><strong>Sampling Rate:</strong> {item.sampling_rate} Hz</p>
+                                <p><strong>Note:</strong> {item.note}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div
+                className={`download1-icon ${selectedSensorIds.size === 0 && selectedImuIds.size === 0 ? 'disabled' : ''}`}
                 onClick={downloadSelectedData}
                 disabled={selectedSensorIds.size === 0 && selectedImuIds.size === 0}
             >
-                Download Selected Data
-            </button>
+                <Download size={60} /> {/* React Icons download icon */}
+            </div>
         </div>
     );
 };

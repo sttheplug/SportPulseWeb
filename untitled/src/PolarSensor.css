@@ -134,7 +134,6 @@ button:hover {
     text-align: center; /* Ensures the link is centered */
     display: flex;  /* Align items in a row */
     align-items: center; /* Align links vertically */
-    gap: 10px;
     justify-content: center; /* Center them horizontally */
 }
 
@@ -145,7 +144,7 @@ button:hover {
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    padding: 10px 30px; /* Adds padding only to the link, not affecting the buttons */
+    padding: 10px 20px; /* Adds padding only to the link, not affecting the buttons */
     white-space: nowrap; /* Prevents the text from breaking into a new line */
 }
 

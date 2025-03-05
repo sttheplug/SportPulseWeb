@@ -354,7 +354,7 @@ const PolarSensor = () => {
                                     href={`/data/${device.name}`}
                                     className="download-link"
                                 >
-                                    Find Data
+                                    Select & Download
                                 </a>
                                 {/* Conditional Download Data Link */}
                                 {downloadReadyDevices[device.name] && (

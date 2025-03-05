@@ -24,8 +24,14 @@ h2 {
 
 h3 {
     font-size: 1.5rem;
-    margin-top: 10px;
+    margin-top: 20px;
     text-shadow: 1px 1px 5px rgba(0, 255, 255, 0.8);
+}
+
+.data-section {
+    margin-bottom: 30px;
+    width: 100%;
+    max-width: 1000px;
 }
 
 .data-grid {
@@ -33,8 +39,6 @@ h3 {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
     width: 100%;
-    max-width: 1000px;
-    margin-bottom: 20px;
 }
 
 .data-card1 {
@@ -54,7 +58,6 @@ h3 {
     box-shadow: 0 4px 20px rgba(0, 255, 255, 0.8); /* Increased glow on hover */
     transform: scale(1.05);
 }
-
 
 .checkbox-container {
     display: flex;
@@ -84,23 +87,25 @@ input[type="checkbox"]:checked + .custom-checkbox {
     font-size: 0.95rem;
 }
 
-.download-button {
-    background: #00eaff;
-    color: black;
-    padding: 12px 20px;
-    font-size: 1rem;
-    border: none;
-    border-radius: 8px;
+.download1-icon {
+    background: none;
+    color: rgba(0, 255, 255, 1); /* Cyan color when enabled */
+    font-size: 3rem; /* Large icon size */
     cursor: pointer;
     transition: 0.3s;
     margin-top: 20px;
 }
 
-.download-button:hover {
-    background: #00c8e0;
+.download1-icon:hover {
+    color: #00eaff; /* Change color on hover */
 }
 
-.download-button:disabled {
-    background: rgb(128, 128, 128);
+.download1-icon.disabled {
+    color: rgb(128, 128, 128); /* Disabled state color */
     cursor: not-allowed;
 }
+
+.download1-icon i {
+    vertical-align: middle; /* Center icon vertically */
+}
+
